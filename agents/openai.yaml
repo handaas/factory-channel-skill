@@ -1,0 +1,4 @@
+interface:
+  display_name: "渠道信息分析报告"
+  short_description: "基于 HandaaS 渠道信息分析洞察 MCP，生成渠道分析（与同行对比）/ 渠道搜索明细的专业 HTML / Markdown / JSON 报告，支持企业渠道分析与渠道检索两种模式。"
+  default_prompt: "使用 $factory-channel-report 生成「企业名称」的渠道信息分析报告（或按关键词做渠道检索）：自动补全企业全称，调用渠道 MCP 工具，产出 HTML + Markdown + JSON 三件套。"
