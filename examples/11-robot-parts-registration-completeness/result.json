@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "skill": "factory-channel-skill",
+  "case_id": "11-robot-parts-registration-completeness",
+  "title": "工业机器人配件候选登记字段完整度",
+  "invocation_id": "1793070061174835000",
+  "provenance": {
+    "integrator_id": "683e574805537ace146cc05e",
+    "runner_sha256": "05777c2f2b0791cb5157aef691206606dade8df7af3b17212285b7ae74632a66",
+    "credential_policy_sha256": "bcabf08a1ca92f28357c0e57a8bae9bfa910eb1d4b204d8195ee3b7a77106eed",
+    "scenario_sha256": "f2c873773fda0c2ca4e7e18589530d38f21f45be60b648e9a767aa5425ff65ef",
+    "skill_source_hashes": {
+      "scripts/common.py": "de3408d23106965a2d130deee2f0bf444eb80bab45c17d22f0273289c7274069",
+      "scripts/compose_report.py": "23da5b4df0563af517c4ed10c17a118de73c68af93db5814b011635515b10ab3",
+      "scripts/mcp_client.py": "84745d9e6590c5bf8d59b6885c07b5ba76d24e5468779c642012d7e50704b2c2",
+      "scripts/render_report.py": "753d722c29a161a08c8b4a670cf7726ce79cf9cf5b037e8e245afa8efb5b6ee9",
+      "scripts/validate_config.py": "c678ab6881b9e0966fd923f6f2690e374ba4589b1ab39328362e7a8f0a9c5e79"
+    },
+    "upstream_source_hashes": {
+      "factory-channel-mcp-server": "55be95e05414b7598447c482f6128a02da60ea7f9adfd59a75bdc4aebd36a888"
+    },
+    "upstream_dependency_hashes": {
+      "factory-channel-mcp-server/server/mcp_server.py": "55be95e05414b7598447c482f6128a02da60ea7f9adfd59a75bdc4aebd36a888"
+    }
+  },
+  "source_changed_during_run": false,
+  "started_at": "2026-10-27T11:01:01+08:00",
+  "elapsed_seconds": 1.725,
+  "returncode": 0,
+  "exception_type": null,
+  "command": "python3 factory-channel-skill/scripts/compose_report.py --search '工业机器人配件' --page-size 10 --output factory-channel-skill/output/live-replaced-20261027/11-robot-parts-registration-completeness/report.json --report-output factory-channel-skill/output/live-replaced-20261027/11-robot-parts-registration-completeness/report.html",
+  "transport": "local MCP servers via loopback streamable-http",
+  "cache_used": false,
+  "call_count": 1,
+  "successful_data_calls": 1,
+  "empty_calls": 0,
+  "failed_calls": 0,
+  "checks": {
+    "issues": [],
+    "warnings": [],
+    "coverage_pct": 100,
+    "subject": {
+      "enterprise": "工业机器人配件",
+      "matchKeyword": "工业机器人配件",
+      "keywordType": "name",
+      "match_raw": "工业机器人配件",
+      "resolved": false,
+      "resolve_reason": "未指定企业（渠道检索模式）",
+      "search_mode": true,
+      "mode": "search",
+      "requires_confirmation": false,
+      "candidates": [],
+      "fuzzy_requested": false
+    },
+    "title": "工业机器人配件 渠道检索报告",
+    "data_mode": "search",
+    "metrics": [
+      {
+        "label": "渠道/供应商",
+        "value": "145",
+        "hint": "渠道搜索命中数"
+      }
+    ],
+    "quality_report": {
+      "total_sections": 1,
+      "populated_sections": 1,
+      "empty_sections": 0,
+      "coverage_pct": 100
+    },
+    "unregistered_tools": [],
+    "checks": {
+      "json_html_markdown": true,
+      "explicit_live": true,
+      "tool_calls_recorded": 1,
+      "offline_scripts": true,
+      "independent_rerender": true
+    }
+  },
+  "status": "passed",
+  "source_hashes": {
+    "scripts/common.py": "de3408d23106965a2d130deee2f0bf444eb80bab45c17d22f0273289c7274069",
+    "scripts/compose_report.py": "23da5b4df0563af517c4ed10c17a118de73c68af93db5814b011635515b10ab3",
+    "scripts/mcp_client.py": "84745d9e6590c5bf8d59b6885c07b5ba76d24e5468779c642012d7e50704b2c2",
+    "scripts/render_report.py": "753d722c29a161a08c8b4a670cf7726ce79cf9cf5b037e8e245afa8efb5b6ee9",
+    "scripts/validate_config.py": "c678ab6881b9e0966fd923f6f2690e374ba4589b1ab39328362e7a8f0a9c5e79"
+  }
+}

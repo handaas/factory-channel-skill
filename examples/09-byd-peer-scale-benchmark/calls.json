@@ -1,0 +1,49 @@
+[
+  {
+    "tool": "channel_insight_channel_analysis",
+    "domain": null,
+    "arguments": {
+      "matchKeyword": "比亚迪股份有限公司",
+      "keywordType": "name"
+    },
+    "invocation_id": "1793070060468954000",
+    "elapsed_seconds": 0.8,
+    "status": "data",
+    "error_category": null,
+    "result_type": "dict",
+    "top_level_fields": [
+      "productCategoryList",
+      "financialStat",
+      "salesStat"
+    ],
+    "row_count": null,
+    "reported_total": null,
+    "numeric_evidence": [
+      {
+        "path": "productCategoryList[0].number",
+        "value": 4
+      },
+      {
+        "path": "productCategoryList[0].ratio",
+        "value": 1.0
+      },
+      {
+        "path": "financialStat.categoryCount",
+        "value": 433988
+      },
+      {
+        "path": "financialStat.regCapitalRank",
+        "value": 433897
+      },
+      {
+        "path": "salesStat.annualTurnoverRank",
+        "value": 359192
+      },
+      {
+        "path": "salesStat.categoryCount",
+        "value": 364126
+      }
+    ],
+    "response_sha256": "159c437a89f396d7d30f7b69fe458a3f1798651fd6a885dce241048da75a6973"
+  }
+]

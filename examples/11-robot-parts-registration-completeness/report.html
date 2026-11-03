@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="data:," />
-  <title>比亚迪股份有限公司 渠道信息分析报告（企业渠道分析）</title>
+  <title>工业机器人配件 渠道检索报告</title>
   <style>
     :root { --bg:#eef1f5; --card:#ffffff; --text:#1f2937; --muted:#64748b; --line:#d8dee8; --blue:#003b71; --deep:#003b71; --red:#7f1d1d; --gold:#d97706; --stripe:#666; }
     * { box-sizing:border-box; letter-spacing:0 !important; }
@@ -29,14 +29,14 @@
     .report-lead { margin:0 0 22px; color:#0b3768; font-size:19px; line-height:1.85; font-weight:800; }
     .abstract-box { border-left:5px solid var(--gold); background:#fff8eb; padding:16px 18px; color:#9a4b00; font-size:17px; line-height:1.8; font-style:italic; margin:22px 0 24px; }
     .biz-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; margin:22px 0; background:#d6dee9; border:1px solid #d6dee9; }
-    .biz-metric { background:#fff; padding:16px 14px; display:flex; flex-direction:column; min-height:88px; }
+    .biz-metric { background:#fff; padding:16px 14px; display:flex; flex-direction:column; min-height:88px; min-width:0; }
     .biz-metric-empty { background:#f8fafc; visibility:hidden; }
     .biz-metric .m-name { color:#64748b; font-size:12px; font-weight:700; line-height:1.2; margin-bottom:4px; }
     .biz-metric .m-tag { font-size:11px; font-weight:800; line-height:1; margin-bottom:10px; display:block; min-height:11px; }
     .biz-metric .m-tag.t-up { color:#16a34a; }
     .biz-metric .m-tag.t-down { color:#dc2626; }
     .biz-metric .m-tag.t-neutral { color:#6366f1; }
-    .biz-metric .m-value { color:#0b3768; font-size:26px; line-height:1.1; font-weight:900; letter-spacing:-.02em; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; margin-top:auto; }
+    .biz-metric .m-value { color:#0b3768; font-size:26px; line-height:1.1; font-weight:900; letter-spacing:-.02em; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; margin-top:auto; min-width:0; max-width:100%; overflow-wrap:anywhere; }
     .biz-metric .m-value .m-tag.t-up { color:#16a34a; }
     .biz-metric .m-value .m-tag.t-down { color:#dc2626; }
     .biz-metric .m-value .m-tag.t-neutral { color:#6366f1; }
@@ -145,6 +145,7 @@
     .chart-box-gauge { max-width:380px; }
     .chart-title { margin:0 0 8px; color:#0b3768; font-size:15px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
     .chart-canvas { width:100%; height:300px; }
+    .chart-canvas[data-chart-state="waiting"],.chart-canvas[data-chart-state="error"] { display:flex; align-items:center; justify-content:center; color:#64748b; font-size:13px; text-align:center; }
     .chart-box-gauge .chart-canvas { height:240px; }
     .chart-data { margin-top:10px; }
     .chart-data summary { cursor:pointer; color:#0b5ca8; font-size:12px; font-weight:700; padding:4px 0; }
@@ -212,16 +213,70 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
 </script>
   <script>
 (function(){
-  window.__echarts_instances=[];
+  if(window.__handaas_boot_charts){window.__handaas_boot_charts();return;}
+  window.__echarts_instances=window.__echarts_instances||[];
+  var status=window.__handaas_chart_status={state:'waiting',total:0,ready:0,failed:0};
+  var timer=null, retries=0, MAX_RETRIES=100;
+  var layoutRetries=0, MAX_LAYOUT_RETRIES=50;
+  var PALETTE=['#0b5ca8','#0284c7','#0b3768','#d97706','#059669','#dc2626','#7c3aed','#db2777','#0891b2','#65a30d'];
+  var FONTS='-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  function summarize(nodes){
+    status.total=nodes.length;status.ready=0;status.failed=0;
+    nodes.forEach(function(el){
+      if(el.getAttribute('data-chart-state')==='ready'){status.ready++;}
+      else if(el.getAttribute('data-chart-state')==='error'){status.failed++;}
+    });
+    status.state=status.ready===status.total?'ready':
+      (status.ready+status.failed===status.total?(status.ready?'degraded':'error'):'waiting');
+  }
+  function raf(fn){if(window.requestAnimationFrame){window.requestAnimationFrame(fn);}else{fn();}}
   function boot(){
-    if(typeof echarts==='undefined'){return;}
-    var PALETTE=['#0b5ca8','#0284c7','#0b3768','#d97706','#059669','#dc2626','#7c3aed','#db2777','#0891b2','#65a30d'];
-    var FONTS='-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
-    document.querySelectorAll('.chart-canvas').forEach(function(el){
-      var raw=el.getAttribute('data-spec'); if(!raw){return;}
-      var spec; try{spec=JSON.parse(raw.replace(/&quot;/g,'"').replace(/&amp;/g,'&'));}catch(e){return;}
-      var chart=echarts.init(el,null,{renderer:'svg'});
-      window.__echarts_instances.push(chart);
+    if(document.readyState==='loading'){return;}
+    var nodes=document.querySelectorAll('.chart-canvas');
+    if(!nodes.length){summarize(nodes);return;}
+    if(!window.echarts || typeof window.echarts.init!=='function'){
+      var exhausted=retries>=MAX_RETRIES;
+      nodes.forEach(function(el){
+        if(el.__handaas_chart_ready){return;}
+        el.__handaas_dependency_error=true;
+        el.setAttribute('data-chart-state',exhausted?'error':'waiting');
+        el.textContent=exhausted?'图表库加载失败或不可用，请查看数据明细或重新生成离线报告。':'图表库正在加载，数据明细仍可查看。';
+      });
+      summarize(nodes);
+      if(!exhausted && timer===null){
+        retries++;
+        timer=setTimeout(function(){timer=null;boot();},100);
+      }
+      return;
+    }
+    if(timer!==null){clearTimeout(timer);timer=null;}
+    var pendingLayout=0;
+    nodes.forEach(function(el){
+      if(el.__handaas_chart_ready){return;}
+      if(el.getAttribute('data-chart-state')==='error' && !el.__handaas_dependency_error){return;}
+      if(window.ResizeObserver && !el.__handaas_resize_observer){
+        el.__handaas_resize_observer=new ResizeObserver(function(){
+          var current=el.__handaas_chart;
+          if(current && typeof current.resize==='function'){try{current.resize();}catch(ignored){}}
+          else{boot();}
+        });
+        el.__handaas_resize_observer.observe(el);
+      }
+      if((el.getClientRects && el.getClientRects().length===0) || el.clientWidth<2 || el.clientHeight<2){
+        el.setAttribute('data-chart-state','waiting');
+        el.textContent='图表等待布局完成后渲染，数据明细仍可查看。';
+        pendingLayout++;
+        return;
+      }
+      var chart=null;
+      try{
+        var raw=el.getAttribute('data-spec');
+        if(!raw){throw new Error('Missing chart configuration');}
+        // getAttribute already decodes HTML entities; a second decode corrupts labels.
+        var spec=JSON.parse(raw);
+        if(['line','bar','pie','gauge','radar'].indexOf(spec.type)<0){throw new Error('Unsupported chart type');}
+        el.textContent='';
+        chart=window.echarts.init(el,null,{renderer:'svg'});
       var opt={color:PALETTE,tooltip:{trigger: spec.type==='pie'?'item':'axis'},textStyle:{fontFamily:FONTS,fontSize:12,color:'#334155'},grid:{left:48,right:24,top:30,bottom:40},legend:{top:0,textStyle:{fontSize:11}}};
       if(spec.type==='line'){
         opt.xAxis={type:'category',data:spec.x,axisLabel:{fontSize:11,interval:0,rotate: spec.x && spec.x.length>6?35:0}};
@@ -247,14 +302,47 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
         opt.radar={indicator:spec.indicators,radius:'62%',axisName:{color:'#475569',fontSize:11},splitArea:{areaStyle:{color:['#f8fbff','#eef4fb']}}};
         opt.series=[{type:'radar',areaStyle:{opacity:0.18},data:spec.series}];
       }
-      chart.setOption(opt);
-      window.addEventListener('resize',function(){chart.resize();});
+        chart.setOption(opt);
+        el.__handaas_chart=chart;
+        el.__handaas_chart_ready=true;
+        el.__handaas_dependency_error=false;
+        el.setAttribute('data-chart-state','ready');
+        window.__echarts_instances.push(chart);
+        raf(function(){try{chart.resize();}catch(ignored){}});
+      }catch(e){
+        if(chart && typeof chart.dispose==='function'){try{chart.dispose();}catch(ignored){}}
+        el.__handaas_dependency_error=false;
+        el.setAttribute('data-chart-state','error');
+        el.textContent='图表绘制失败，请查看数据明细。';
+      }
     });
+    summarize(nodes);
+    if(pendingLayout && layoutRetries<MAX_LAYOUT_RETRIES){
+      layoutRetries++;
+      setTimeout(boot,100);
+    }
   }
-  if(document.readyState!=='loading'){boot();}else{document.addEventListener('DOMContentLoaded',boot);}
+  window.__handaas_boot_charts=boot;
   window.__echarts_resize_all=function(){
     (window.__echarts_instances||[]).forEach(function(c){try{c.resize();}catch(e){}});
   };
+  function bootAfterLayout(){
+    raf(function(){boot();window.__echarts_resize_all();});
+  }
+  window.addEventListener('resize',window.__echarts_resize_all);
+  window.addEventListener('load',bootAfterLayout);
+  window.addEventListener('pageshow',bootAfterLayout);
+  window.addEventListener('handaas:echarts-ready',bootAfterLayout);
+  window.addEventListener('orientationchange',bootAfterLayout);
+  // A very late external script can still recover after the bounded retry ends.
+  document.addEventListener('load',function(event){
+    if(event.target && event.target.tagName==='SCRIPT'){boot();}
+  },true);
+  document.addEventListener('DOMContentLoaded',bootAfterLayout);
+  document.addEventListener('visibilitychange',boot);
+  if(document.fonts && document.fonts.ready){document.fonts.ready.then(function(){window.__echarts_resize_all();});}
+  [0,300,1000,2500].forEach(function(ms){setTimeout(function(){boot();window.__echarts_resize_all();},ms);});
+  boot();
 })();
 </script>
 </head>
@@ -264,45 +352,41 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
     <div class="cover-grid">
       <aside class="cover-side">
         <h2 class="cover-side-title">渠道信息分析报告</h2>
-        <p class="cover-date">2026年08月10日</p>
+        <p class="cover-date">2026年10月27日</p>
         <h3 class="toc-title">目录</h3>
         <ol class="toc-list"><li><span>报告摘要</span></li><li><span>查询对象与口径</span></li><li><span>数据总览</span></li><li><span>核心分析</span></li><li><span>代表性记录</span></li><li><span>特征与洞察</span></li></ol>
         <h3 class="scope-title">报告口径</h3>
-        <div class="biz-scope"><div class="biz-scope-item"><span>匹配对象</span><strong>比亚迪股份有限公司</strong></div><div class="biz-scope-item"><span>匹配方式</span><strong>渠道分析按企业主体匹配（keywordType=name），并与同行对比；支持企业名称/注册号/统一社会信用代码/企业 id</strong></div><div class="biz-scope-item"><span>数据范围</span><strong>渠道分析（与同行对比）、渠道/供应商搜索</strong></div><div class="biz-scope-item"><span>局限说明</span><strong>数据来自公开渠道信息；少量字段可能存在更新延迟。</strong></div></div>
+        <div class="biz-scope"><div class="biz-scope-item"><span>匹配对象</span><strong>工业机器人配件</strong></div><div class="biz-scope-item"><span>匹配方式</span><strong>渠道检索模式：按渠道关键词 / 地址检索渠道与供应商，与特定企业主体无关</strong></div><div class="biz-scope-item"><span>数据范围</span><strong>渠道/供应商明细</strong></div><div class="biz-scope-item"><span>局限说明</span><strong>仅为渠道/供应商关键词检索当前页样本，不包含企业同行基准；空结果或调用错误不构成企业分析结论。</strong></div></div>
       </aside>
       <section class="cover-main">
         <p class="report-kicker">CHANNEL DATA RESEARCH</p>
-        <h1>比亚迪股份有限公司 渠道信息分析报告（企业渠道分析）</h1>
-        <p class="report-lead">本报告以“比亚迪股份有限公司”为分析对象，基于公开渠道数据，系统呈现企业渠道结构并与同行对比，同时给出渠道/供应商检索明细。关键指标包括：注册资本分位 前 0.02%、注册资本区间 5000+、营收分位 前 1.4%、营收区间 5000+。报告围绕渠道规模、同行对比与渠道结构给出结构化解读，便于销售/采购渠道管理、供应商寻源与渠道策略决策参考</p>
+        <h1>工业机器人配件 渠道检索报告</h1>
+        <p class="report-lead">本报告以“工业机器人配件”为检索范围，呈现渠道/供应商检索结果及其状态。关键指标包括：渠道/供应商 145。检索结果仅为公开数据样本；错误、空结果或待确认主体不计入有效覆盖</p>
         <div class="abstract-box">报告涵盖查询对象、数据总览、核心分析、代表性记录与结构洞察，所有数据均标注口径与来源。</div>
-        <div class="biz-metrics"><div class="biz-metric"><span class="m-name">注册资本分位</span><span class="m-tag t-neutral">排名 433897/433988</span><span class="m-value">前 0.02%</span></div><div class="biz-metric"><span class="m-name">注册资本区间</span><span class="m-tag"></span><span class="m-value">5000+</span></div><div class="biz-metric"><span class="m-name">营收分位</span><span class="m-tag t-neutral">排名 359192/364126</span><span class="m-value">前 1.4%</span></div><div class="biz-metric"><span class="m-name">营收区间</span><span class="m-tag"></span><span class="m-value">5000+</span></div><div class="biz-metric"><span class="m-name">同行企业总数</span><span class="m-tag"></span><span class="m-value">433988</span></div><div class="biz-metric"><span class="m-name">注册资本区间</span><span class="m-tag"></span><span class="m-value">5000+</span></div><div class="biz-metric"><span class="m-name">营收区间</span><span class="m-tag"></span><span class="m-value">5000+</span></div><div class="biz-metric-empty"></div></div>
-        <ul class="exec-list"><li>注册资本分位反映企业在同行中的资金实力：分位越靠前代表资本实力越强，是供应链履约与抗风险能力的硬指标。</li><li>营收分位反映企业在同行中的销售规模：分位越靠前代表市场占有率与销售网络越强。</li><li>同行总数反映所在赛道的竞争密度：同行越多说明赛道越拥挤，分位排名的含金量也越高。</li></ul>
-        <div class="cover-findings"><h3 class="cover-findings-title">核心发现</h3><div class="cover-findings-grid"><div class="finding-card"><p class="f-label">资金实力</p><p class="f-text">注册资本分位 前 0.02%（排名 433897/433988）、区间 5000+。</p></div><div class="finding-card"><p class="f-label">销售实力</p><p class="f-text">营收分位 前 1.4%（排名 359192/364126）、区间 5000+。</p></div><div class="finding-card"><p class="f-label">行业体量</p><p class="f-text">同行企业约 433988 家。</p></div></div></div>
-        <div class="cover-dimensions"><span class="dim-label">分析维度</span><div class="dim-tags"><span class="dim-tag">渠道分析（与同行对比）</span></div></div>
-        <div class="cover-scope-bar"><span class="scope-item"><em>数据产品</em>渠道分析、渠道搜索</span><span class="scope-item"><em>覆盖范围</em>渠道分析（与同行对比）、渠道/供应商搜索</span></div>
+        <div class="biz-metrics"><div class="biz-metric"><span class="m-name">渠道/供应商</span><span class="m-tag"></span><span class="m-value">145</span></div><div class="biz-metric"><span class="m-name">渠道检索规模</span><span class="m-tag"></span><span class="m-value">145 条</span></div><div class="biz-metric"><span class="m-name">当前页候选字段</span><span class="m-tag"></span><span class="m-value">10 条</span></div><div class="biz-metric-empty"></div></div>
+        <ul class="exec-list"><li>该数值仅是上游检索命中总数；不直接等同于供给密度、可合作数量或合格供应商数量。</li><li>当前页仅展示名称、主营产品、成立时间与注册资本字段；未返回地址时不形成地域分布结论，也不据此认定优质或合格供应商。</li></ul>
+        <div class="cover-findings"><h3 class="cover-findings-title">核心发现</h3><div class="cover-findings-grid"><div class="finding-card"><p class="f-label">渠道检索规模</p><p class="f-text">检索命中渠道/供应商 145 条。</p></div><div class="finding-card"><p class="f-label">当前页候选字段</p><p class="f-text">渠道/供应商明细 10 条。</p></div></div></div>
+        <div class="cover-dimensions"><span class="dim-label">分析维度</span><div class="dim-tags"><span class="dim-tag">渠道/供应商明细</span></div></div>
+        <div class="cover-scope-bar"><span class="scope-item"><em>数据产品</em>渠道搜索</span><span class="scope-item"><em>覆盖范围</em>渠道/供应商明细</span></div>
       </section>
     </div>
   </article>
   <main class="research-doc">
-    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>报告摘要</h2><p class="biz-section-note">概述分析对象、数据覆盖范围与核心发现。</p></div><span class="biz-tag">Summary</span></div><p class="biz-summary">本报告以“比亚迪股份有限公司”为分析对象，基于公开渠道数据，系统呈现企业渠道结构并与同行对比，同时给出渠道/供应商检索明细。关键指标包括：注册资本分位 前 0.02%、注册资本区间 5000+、营收分位 前 1.4%、营收区间 5000+。报告围绕渠道规模、同行对比与渠道结构给出结构化解读，便于销售/采购渠道管理、供应商寻源与渠道策略决策参考</p></section>
-    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>查询对象与口径</h2><p class="biz-section-note">说明匹配对象、匹配方式与数据范围。</p></div><span class="biz-tag">Caliber</span></div><div class="info-list"><div class="info-row"><span class="info-label">匹配对象</span><span class="info-value">比亚迪股份有限公司</span></div><div class="info-row"><span class="info-label">匹配方式</span><span class="info-value">渠道分析按企业主体匹配（keywordType=name），并与同行对比；支持企业名称/注册号/统一社会信用代码/企业 id</span></div><div class="info-row"><span class="info-label">数据范围</span><span class="info-value">渠道分析（与同行对比）、渠道/供应商搜索</span></div><div class="info-row"><span class="info-label">局限说明</span><span class="info-value">数据来自公开渠道信息；少量字段可能存在更新延迟。</span></div></div></section>
-    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>数据总览</h2><p class="biz-section-note">关键指标一览。</p></div><span class="biz-tag">Metrics</span></div><div class="biz-metrics"><div class="biz-metric"><span class="m-name">注册资本分位</span><span class="m-tag t-neutral">排名 433897/433988</span><span class="m-value">前 0.02%</span></div><div class="biz-metric"><span class="m-name">注册资本区间</span><span class="m-tag"></span><span class="m-value">5000+</span></div><div class="biz-metric"><span class="m-name">营收分位</span><span class="m-tag t-neutral">排名 359192/364126</span><span class="m-value">前 1.4%</span></div><div class="biz-metric"><span class="m-name">营收区间</span><span class="m-tag"></span><span class="m-value">5000+</span></div><div class="biz-metric"><span class="m-name">同行企业总数</span><span class="m-tag"></span><span class="m-value">433988</span></div><div class="biz-metric"><span class="m-name">注册资本区间</span><span class="m-tag"></span><span class="m-value">5000+</span></div><div class="biz-metric"><span class="m-name">营收区间</span><span class="m-tag"></span><span class="m-value">5000+</span></div><div class="biz-metric-empty"></div></div></section>
-    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>核心分析</h2><p class="biz-section-note">按维度展开目标核心数据与结构化明细。</p></div><span class="biz-tag">Analysis</span></div><h3 class="biz-subsection-title">渠道分析（与同行对比）</h3><div class="info-list"><div class="info-row"><span class="info-label">注册资本区间</span><span class="info-value">5000+</span></div><div class="info-row"><span class="info-label">注册资本分位</span><span class="info-value">前 0.02%（排名 433897/433988）</span></div><div class="info-row"><span class="info-label">营收区间</span><span class="info-value">5000+</span></div><div class="info-row"><span class="info-label">营收分位</span><span class="info-value">前 1.4%（排名 359192/364126）</span></div><div class="info-row"><span class="info-label">注册资本同行总数</span><span class="info-value">433988</span></div><div class="info-row"><span class="info-label">营收同行总数</span><span class="info-value">364126</span></div></div></section>
-    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>代表性记录</h2><p class="biz-section-note">关键明细记录 Top N。</p></div><span class="biz-tag">Records</span></div><p class="muted">暂无</p></section>
+    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>报告摘要</h2><p class="biz-section-note">概述分析对象、数据覆盖范围与核心发现。</p></div><span class="biz-tag">Summary</span></div><p class="biz-summary">本报告以“工业机器人配件”为检索范围，呈现渠道/供应商检索结果及其状态。关键指标包括：渠道/供应商 145。检索结果仅为公开数据样本；错误、空结果或待确认主体不计入有效覆盖</p></section>
+    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>查询对象与口径</h2><p class="biz-section-note">说明匹配对象、匹配方式与数据范围。</p></div><span class="biz-tag">Caliber</span></div><div class="info-list"><div class="info-row"><span class="info-label">匹配对象</span><span class="info-value">工业机器人配件</span></div><div class="info-row"><span class="info-label">匹配方式</span><span class="info-value">渠道检索模式：按渠道关键词 / 地址检索渠道与供应商，与特定企业主体无关</span></div><div class="info-row"><span class="info-label">数据范围</span><span class="info-value">渠道/供应商明细</span></div><div class="info-row"><span class="info-label">局限说明</span><span class="info-value">仅为渠道/供应商关键词检索当前页样本，不包含企业同行基准；空结果或调用错误不构成企业分析结论。</span></div></div></section>
+    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>数据总览</h2><p class="biz-section-note">关键指标一览。</p></div><span class="biz-tag">Metrics</span></div><div class="biz-metrics"><div class="biz-metric"><span class="m-name">渠道/供应商</span><span class="m-tag"></span><span class="m-value">145</span></div><div class="biz-metric"><span class="m-name">渠道检索规模</span><span class="m-tag"></span><span class="m-value">145 条</span></div><div class="biz-metric"><span class="m-name">当前页候选字段</span><span class="m-tag"></span><span class="m-value">10 条</span></div><div class="biz-metric-empty"></div></div></section>
+    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>核心分析</h2><p class="biz-section-note">按维度展开目标核心数据与结构化明细。</p></div><span class="biz-tag">Analysis</span></div><h3 class="biz-subsection-title">渠道/供应商明细</h3><p class="biz-section-note">渠道/供应商记录 145 条，展示前 10 条</p><div class="table-wrap"><table><thead><tr><th>渠道/供应商名称</th><th>主营产品</th><th>成立时间</th><th>注册资本</th></tr></thead><tbody><tr><td>佛山市金杰铖贸易有限公司</td><td>机器配件、电源板、计算机板、机器手臂、工业机器、齿轮减速机、扩展板、通讯基板、接口板、组装机、伺服板、弧焊板、机械臂、扩展大板、通讯线、机器人、外部轴卡、动力线、电源模块、机械手、控制电源、柜主板、驱动模块、安全板、示教器</td><td>2012-10-18</td><td>100.0万人民币</td></tr><tr><td>广州铭心自动化设备有限公司</td><td>发那科机器人配件、机器人维修回收、工业机器人配件、机器人配件销、发那科、库卡机器人配件、协作机器人、工业机器人回收、PLC、工业机器人保养、驱动器、库卡、工业机器人、ABB机器人、安川机器人、电子制造设备、工业机器人调试、ABB、ABB机器人配件、安川、发那科机器人、示教器</td><td>2017-06-23</td><td>500.000000万人民币</td></tr><tr><td>杭州龙盛工贸有限公司</td><td>五金冲压钣金件、螺丝导向钻、led灯壳、套孔钻、锪钻、工业机器人配件、木工工具、支罗钻、木塞钻、医疗器械配件、平刮钻、压铸件、日用包装、医疗耗材、木工扁钻、平翼钻、体温计、铧钻、铝压铸件、沉孔钻、木工铣刀、安防配件、开榫刀、宠物服装</td><td>1997-09-19</td><td>3000.000000万人民币</td></tr><tr><td>青岛琅勃拉工贸有限公司</td><td>机器人配件、数控、钣金加工、负压风机配件、激光加工、CNC加工、数控加工零件、CNC加工中心</td><td>2015-12-14</td><td>100.000000万</td></tr><tr><td>厦门阿波波机器人科技有限公司</td><td>面板电缆、通讯板、机器人配件、减速/变速机、机械手、关节型机器人、触摸屏、机器人、计算机板、蜘蛛手臂纤维杆、驱动模块、通讯卡、一轴减速机、示教器、伺服电机</td><td>2020-02-18</td><td>100.000000万人民币</td></tr><tr><td>广州凯惠自动化设备有限公司</td><td>ABB机器人保养、机器人配件维修 保养 调试、手操器操作杆、库卡机器人驱动、KUKA机器人电源、库卡机器人配件、ABB机器人旋杯、工业机器人驱动器、工业机器人保养、机器人配件商、ABB机器人手腕、ABB机器人示教器、ABB喷涂机器人配件、ABB机器人减速机、减速/变速机、ABB机器人电机、机器人上门维修保养调试、机器人、三轴马达、库卡机器人示教器、伺服电机、机器人配件、库卡机器人保养、ABB机器人维修调试、机器人售后服务、ABB机器人配件、ABB机器人故障、ABB机器人本体电缆、机器人保养、ABB机器人控制柜配件、ABB机器人空气马达、控制柜</td><td>2016-10-12</td><td>200.000000万人民币</td></tr><tr><td>北京川瑞智能科技有限公司</td><td>机器人配件、二手拆机配件、机器人工作站集成、动力线、机器人维保、电源模块、库卡工业机器人、工作站集成、工业机器人、套装盒、机器人、工业机器人配件、库卡机器人、机器人保养、控制柜</td><td>2013-05-30</td><td>100.000000万人民币</td></tr><tr><td>文伊橡塑科技(上海)有限公司</td><td>柔性拖链 软管、旋转座、连接与保护系统、尘拖链、固定座、拖链、硅胶管、绝缘套管、阻燃波纹管、水气管、柔性无尘拖链、PVC管、尼龙伸缩网管、新材料科技、电缆防水接头、PA管、焊接机器人软管、尼龙波纹管、波纹管、机器人气管、PU管、聚氨酯软管、坦克链穿线拖链、机器人焊接气管、自动化科技领域内的技术、无尘柔性拖链、机器人、电缆拖链、透明管、橙色波纹管、塑料制品、机械手、工业机器人软管、无尘拖链、尼龙拖链、静音拖链</td><td>2017-02-27</td><td>688.000000万人民币</td></tr><tr><td>东莞市泰极智能设备有限公司</td><td>控制柜驱动电源、智能码垛设备、机械手、机器手、高精度地轨、车间用进口设备、机器人应用、工业机器人、机器人、工业机器人配件、中控板、机器臂、六轴械手臂、驱动器、电力电源部件、上下料机械设备、机械臂、电源模组、焊接设备、控制柜</td><td>2018-10-17</td><td>100.000000万</td></tr><tr><td>深圳市耐斯特机械设备有限公司</td><td>机械手气缸、垃圾桶、机械手、淋浴房、淋浴器、蒸汽发生器、蒸汽发生机、防护帽、空气处理化学品、气缸、机械手配件、气动工具配件</td><td>2011-08-25</td><td>500.000000万人民币</td></tr></tbody></table></div></section>
+    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>代表性记录</h2><p class="biz-section-note">关键明细记录 Top N。</p></div><span class="biz-tag">Records</span></div><div class="table-wrap"><table><thead><tr><th>渠道/供应商名称</th><th>主营产品</th><th>成立时间</th><th>注册资本</th></tr></thead><tbody><tr><td>佛山市金杰铖贸易有限公司</td><td>机器配件、电源板、计算机板、机器手臂、工业机器、齿轮减速机、扩展板、通讯基板、接口板、组装机、伺服板、弧焊板、机械臂、扩展大板、通讯线、机器人、外部轴卡、动力线、电源模块、机械手、控制电源、柜主板、驱动模块、安全板、示教器</td><td>2012-10-18</td><td>100.0万人民币</td></tr><tr><td>广州铭心自动化设备有限公司</td><td>发那科机器人配件、机器人维修回收、工业机器人配件、机器人配件销、发那科、库卡机器人配件、协作机器人、工业机器人回收、PLC、工业机器人保养、驱动器、库卡、工业机器人、ABB机器人、安川机器人、电子制造设备、工业机器人调试、ABB、ABB机器人配件、安川、发那科机器人、示教器</td><td>2017-06-23</td><td>500.000000万人民币</td></tr><tr><td>杭州龙盛工贸有限公司</td><td>五金冲压钣金件、螺丝导向钻、led灯壳、套孔钻、锪钻、工业机器人配件、木工工具、支罗钻、木塞钻、医疗器械配件、平刮钻、压铸件、日用包装、医疗耗材、木工扁钻、平翼钻、体温计、铧钻、铝压铸件、沉孔钻、木工铣刀、安防配件、开榫刀、宠物服装</td><td>1997-09-19</td><td>3000.000000万人民币</td></tr><tr><td>青岛琅勃拉工贸有限公司</td><td>机器人配件、数控、钣金加工、负压风机配件、激光加工、CNC加工、数控加工零件、CNC加工中心</td><td>2015-12-14</td><td>100.000000万</td></tr><tr><td>厦门阿波波机器人科技有限公司</td><td>面板电缆、通讯板、机器人配件、减速/变速机、机械手、关节型机器人、触摸屏、机器人、计算机板、蜘蛛手臂纤维杆、驱动模块、通讯卡、一轴减速机、示教器、伺服电机</td><td>2020-02-18</td><td>100.000000万人民币</td></tr><tr><td>广州凯惠自动化设备有限公司</td><td>ABB机器人保养、机器人配件维修 保养 调试、手操器操作杆、库卡机器人驱动、KUKA机器人电源、库卡机器人配件、ABB机器人旋杯、工业机器人驱动器、工业机器人保养、机器人配件商、ABB机器人手腕、ABB机器人示教器、ABB喷涂机器人配件、ABB机器人减速机、减速/变速机、ABB机器人电机、机器人上门维修保养调试、机器人、三轴马达、库卡机器人示教器、伺服电机、机器人配件、库卡机器人保养、ABB机器人维修调试、机器人售后服务、ABB机器人配件、ABB机器人故障、ABB机器人本体电缆、机器人保养、ABB机器人控制柜配件、ABB机器人空气马达、控制柜</td><td>2016-10-12</td><td>200.000000万人民币</td></tr><tr><td>北京川瑞智能科技有限公司</td><td>机器人配件、二手拆机配件、机器人工作站集成、动力线、机器人维保、电源模块、库卡工业机器人、工作站集成、工业机器人、套装盒、机器人、工业机器人配件、库卡机器人、机器人保养、控制柜</td><td>2013-05-30</td><td>100.000000万人民币</td></tr><tr><td>文伊橡塑科技(上海)有限公司</td><td>柔性拖链 软管、旋转座、连接与保护系统、尘拖链、固定座、拖链、硅胶管、绝缘套管、阻燃波纹管、水气管、柔性无尘拖链、PVC管、尼龙伸缩网管、新材料科技、电缆防水接头、PA管、焊接机器人软管、尼龙波纹管、波纹管、机器人气管、PU管、聚氨酯软管、坦克链穿线拖链、机器人焊接气管、自动化科技领域内的技术、无尘柔性拖链、机器人、电缆拖链、透明管、橙色波纹管、塑料制品、机械手、工业机器人软管、无尘拖链、尼龙拖链、静音拖链</td><td>2017-02-27</td><td>688.000000万人民币</td></tr><tr><td>东莞市泰极智能设备有限公司</td><td>控制柜驱动电源、智能码垛设备、机械手、机器手、高精度地轨、车间用进口设备、机器人应用、工业机器人、机器人、工业机器人配件、中控板、机器臂、六轴械手臂、驱动器、电力电源部件、上下料机械设备、机械臂、电源模组、焊接设备、控制柜</td><td>2018-10-17</td><td>100.000000万</td></tr><tr><td>深圳市耐斯特机械设备有限公司</td><td>机械手气缸、垃圾桶、机械手、淋浴房、淋浴器、蒸汽发生器、蒸汽发生机、防护帽、空气处理化学品、气缸、机械手配件、气动工具配件</td><td>2011-08-25</td><td>500.000000万人民币</td></tr></tbody></table></div></section>
     <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>特征与洞察</h2><p class="biz-section-note">基于数据的结构化解读。</p></div><span class="biz-tag">Insights</span></div><div class="structural-feature-grid"><article class="structural-feature-card">
-  <h3>资金实力</h3>
-  <p class="structural-evidence">注册资本分位 前 0.02%（排名 433897/433988）、区间 5000+。</p>
-  <p>注册资本分位反映企业在同行中的资金实力：分位越靠前代表资本实力越强，是供应链履约与抗风险能力的硬指标。</p>
+  <h3>渠道检索规模</h3>
+  <p class="structural-evidence">检索命中渠道/供应商 145 条。</p>
+  <p>该数值仅是上游检索命中总数；不直接等同于供给密度、可合作数量或合格供应商数量。</p>
 </article><article class="structural-feature-card">
-  <h3>销售实力</h3>
-  <p class="structural-evidence">营收分位 前 1.4%（排名 359192/364126）、区间 5000+。</p>
-  <p>营收分位反映企业在同行中的销售规模：分位越靠前代表市场占有率与销售网络越强。</p>
-</article><article class="structural-feature-card">
-  <h3>行业体量</h3>
-  <p class="structural-evidence">同行企业约 433988 家。</p>
-  <p>同行总数反映所在赛道的竞争密度：同行越多说明赛道越拥挤，分位排名的含金量也越高。</p>
+  <h3>当前页候选字段</h3>
+  <p class="structural-evidence">渠道/供应商明细 10 条。</p>
+  <p>当前页仅展示名称、主营产品、成立时间与注册资本字段；未返回地址时不形成地域分布结论，也不据此认定优质或合格供应商。</p>
 </article></div></section>
-    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>名词解释</h2><p class="biz-section-note">报告中涉及的专业术语与统计指标说明。</p></div><span class="biz-tag">Glossary</span></div><div class="glossary-list"><div class="glossary-row"><span class="glossary-term">分位</span><span class="glossary-def">统计学概念，指某数值在全体样本中的相对位置。如「前 1.4% 分位」表示该数值高于 98.6% 的样本。</span></div></div></section>
+    
   </main>
 </body>
 </html>

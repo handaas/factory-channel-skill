@@ -1,0 +1,126 @@
+{
+  "report_type": "factory_channel_analysis",
+  "title": "比亚迪股份有限公司 企业规模同行基准报告",
+  "banner": "渠道信息分析报告",
+  "subject": {
+    "enterprise": "比亚迪股份有限公司",
+    "matchKeyword": "比亚迪股份有限公司",
+    "keywordType": "name",
+    "match_raw": "比亚迪股份有限公司",
+    "resolved": true,
+    "resolve_reason": "视为企业全称",
+    "search_mode": false,
+    "mode": "enterprise",
+    "requires_confirmation": false,
+    "candidates": [],
+    "fuzzy_requested": false
+  },
+  "abstract": "本报告以“比亚迪股份有限公司”为分析对象，呈现注册资本与营收同行基准；该产品不提供企业渠道结构证据。关键指标包括：注册资本分位 后 0.02%、注册资本区间 5000+、营收分位 后 1.4%、营收区间 5000+、同行企业总数 433988。检索结果仅为公开数据样本；错误、空结果或待确认主体不计入有效覆盖。",
+  "summary": "本报告以“比亚迪股份有限公司”为分析对象，呈现注册资本与营收同行基准；该产品不提供企业渠道结构证据。关键指标包括：注册资本分位 后 0.02%、注册资本区间 5000+、营收分位 后 1.4%、营收区间 5000+、同行企业总数 433988。检索结果仅为公开数据样本；错误、空结果或待确认主体不计入有效覆盖。",
+  "executive_summary": [
+    "该分位只描述注册资本在上游同行口径中的序位与区间；不等同于实际资金、履约能力或抗风险能力。",
+    "该分位只描述营收在上游同行口径中的序位与区间；不等同于市场份额、销售网络或渠道能力。",
+    "同行总数仅是上游比较口径的样本规模，不直接证明赛道竞争强度或排名价值。"
+  ],
+  "metrics": [
+    {
+      "label": "注册资本分位",
+      "value": "后 0.02%",
+      "hint": "注册资本在同行中的序位",
+      "delta": "排名 433897/433988"
+    },
+    {
+      "label": "注册资本区间",
+      "value": "5000+",
+      "hint": "注册资本规模区间"
+    },
+    {
+      "label": "营收分位",
+      "value": "后 1.4%",
+      "hint": "年营收在同行中的序位",
+      "delta": "排名 359192/364126"
+    },
+    {
+      "label": "营收区间",
+      "value": "5000+",
+      "hint": "年营收规模区间"
+    },
+    {
+      "label": "同行企业总数",
+      "value": "433988",
+      "hint": "行业同赛道企业总量"
+    }
+  ],
+  "caliber": {
+    "match_target": "比亚迪股份有限公司",
+    "match_type": "渠道分析按企业主体匹配（keywordType=name），并与同行对比；支持企业名称/注册号/统一社会信用代码/企业 id",
+    "data_scope": "企业规模同行基准",
+    "products": [
+      "渠道分析"
+    ],
+    "limit": "企业分析实际为注册资本/营收同行基准，不等同于渠道结构；模糊名称存在多候选时必须确认主体后再调用。"
+  },
+  "core_analysis": {
+    "sections": [
+      {
+        "key": "channel_analysis",
+        "title": "企业规模同行基准",
+        "kind": "kv",
+        "note": "注册资本 / 年营收在同行中的序位与区间；不代表渠道结构"
+      }
+    ],
+    "channel_analysis": {
+      "注册资本区间": "5000+",
+      "注册资本分位": "后 0.02%（排名 433897/433988）",
+      "营收区间": "5000+",
+      "营收分位": "后 1.4%（排名 359192/364126）",
+      "注册资本同行总数": "433988",
+      "营收同行总数": "364126"
+    },
+    "channel_search": [],
+    "source_status": {
+      "channel_analysis": "success",
+      "channel_search": "not_requested"
+    }
+  },
+  "representative_records": [],
+  "insights": [
+    {
+      "feature": "注册资本同行位置",
+      "evidence": "注册资本分位 后 0.02%（排名 433897/433988）、区间 5000+。",
+      "interpretation": "该分位只描述注册资本在上游同行口径中的序位与区间；不等同于实际资金、履约能力或抗风险能力。"
+    },
+    {
+      "feature": "营收同行位置",
+      "evidence": "营收分位 后 1.4%（排名 359192/364126）、区间 5000+。",
+      "interpretation": "该分位只描述营收在上游同行口径中的序位与区间；不等同于市场份额、销售网络或渠道能力。"
+    },
+    {
+      "feature": "行业体量",
+      "evidence": "同行企业约 433988 家。",
+      "interpretation": "同行总数仅是上游比较口径的样本规模，不直接证明赛道竞争强度或排名价值。"
+    }
+  ],
+  "data_source": {
+    "mcp_server": "factory-channel-mcp-server",
+    "products": [
+      {
+        "name": "渠道分析",
+        "product_id": "66f3d8bf64bd2be52d68a0fe"
+      }
+    ],
+    "generated_at": "2026-10-27T11:01:01+08:00",
+    "dry_run": false,
+    "quality_report": {
+      "total_sections": 1,
+      "populated_sections": 1,
+      "empty_sections": 0,
+      "coverage_pct": 100
+    },
+    "source_status": {
+      "channel_analysis": "success",
+      "channel_search": "not_requested"
+    },
+    "mode": "enterprise"
+  }
+}

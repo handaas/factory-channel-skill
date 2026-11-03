@@ -1,0 +1,77 @@
+{
+  "run_id": "live-replaced-20261027",
+  "cases": [
+    {
+      "skill": "factory-channel-skill",
+      "id": "05-industrial-robotics",
+      "status": "passed",
+      "positive_business_pass": true,
+      "files_sha256": {
+        "report.json": "045ae2608f3ec76e22e2f4fd52788c727f0518f9050d1b5ac518e6e77bcdcf17",
+        "report.html": "31115e3022a9fc4008932f2fe6260a5a665cca16b552e18c26888e9dbc1856f1",
+        "report.md": "e0027435a303bffc20bff6cc3a22987336131188d1a8ac8dc7d2bdf936c24a6c",
+        "calls.json": "dd3f36a017ab315d440c3672ef1484271d6c17efaad30fa5815ab490c1a24a64",
+        "result.json": "ef302ba05cfddffbfd231442bf9a414499890f256488cbb54872fe9c1fd3d861",
+        "audit.json": "1eff9226cfa166c0acfb4227bc4c55484a6cd7b24ba6177972b9e45058fc2b47",
+        "acceptance.json": "e883885f24ea4c915bec0977432255f910bdba551989c6b8ceeccfcc87f14434",
+        "business-review.json": "b6d0b5e236928a97f6f1dfc7a099be06fe22b43e94a2e525ac70191e9bae135d",
+        "browser-check.json": "7e7cf3f127f9998ee2e82201e86fd30b33cf466209362ba812f235e40b28de2c"
+      },
+      "audit_record": "../../test-records/live-replaced-20261027/05-industrial-robotics.md"
+    },
+    {
+      "skill": "factory-channel-skill",
+      "id": "09-byd-peer-scale-benchmark",
+      "status": "passed",
+      "positive_business_pass": true,
+      "files_sha256": {
+        "report.json": "6714b4cd9dc86658dc7ee69314220a29b60b6168ff3e692af87a0e9040218078",
+        "report.html": "95b4075dbebd5669a1fa4f2dac69c2bfdd9cef8e8048273abd45b0ebad873e55",
+        "report.md": "9849d785a73936130567a5e4ef0172692e94ed4eb7ba9130111505ef2fd2dcc0",
+        "calls.json": "9a6a6ef51fa0d172138ffdcbca9caee2040491d96f8f1a7687b8355a5cef0051",
+        "result.json": "feb42a631ba6c559f3e4c2d2109aa187e36802f7ca6448f9597ce4ce4a6c9dcb",
+        "audit.json": "b604001f98015d2e491799b9b2d9885c4732a304d0c272b7b6aefb630d8bfea2",
+        "acceptance.json": "567057f64e2f025a4542c2e351efe395fe9dd3169c3cadf976c15d6acca07a90",
+        "business-review.json": "86bd76072cce3611e64ea74c81d84a6bb95224d93c954d39976506a09ff2a946",
+        "browser-check.json": "9baeef2b51308c0f21e354ccec72707ed0ae1386bd9271818929e909d325946c"
+      },
+      "audit_record": "../../test-records/live-replaced-20261027/09-byd-peer-scale-benchmark.md"
+    },
+    {
+      "skill": "factory-channel-skill",
+      "id": "10-kuka-product-mix-screen",
+      "status": "passed",
+      "positive_business_pass": true,
+      "files_sha256": {
+        "report.json": "fb923b5602e3e37a49a6ab12dc6cdf1a1dbf5fff533c1a5d706a111c1488f8dd",
+        "report.html": "b10442eabf229fb733f3ac1314a19d5962790cb3abf371656836d36d6dad8bce",
+        "report.md": "1b864e4a37af5c8defa9fa82578971b0cc649f9c21705afb75264bcbd60dfb89",
+        "calls.json": "c61e789afce65ae26652c194bef966202043a32af8dfe84dcefeb208d746173c",
+        "result.json": "d284688e95ab506c876374c1417d911a03e75450db01d8012d54799703ee021b",
+        "audit.json": "0aae0ad124b6f982d6702e1f0585b46678568172df0c5c9bef4a8cdf9a39d43d",
+        "acceptance.json": "909095394ee068906cd88ed0596255ac176d436f8e526fb839fc6c2151fb32f2",
+        "business-review.json": "42f472054ca51f95ae8af0e276a9abd58f2e1c4d59fdf7b47e06b737b437435b",
+        "browser-check.json": "40d6fb6d6c5e661eee2fea4a4d5eb26e3eba2e1a0c04b8ac4d212be379d941b8"
+      },
+      "audit_record": "../../test-records/live-replaced-20261027/10-kuka-product-mix-screen.md"
+    },
+    {
+      "skill": "factory-channel-skill",
+      "id": "11-robot-parts-registration-completeness",
+      "status": "passed",
+      "positive_business_pass": true,
+      "files_sha256": {
+        "report.json": "bc636c0552a1372d1658c209015bca91e7b7506f2f781eb4985a88245f31ce34",
+        "report.html": "d32cee6b8e89e8aebcdfd0e32ff3710ae511d0e14e2b7da3a636c8fdda78ca52",
+        "report.md": "23de755426210e065075369bb1e74c26d8250c4908ac4ee2a356732dbbebe65d",
+        "calls.json": "7dc3a7b4fb32690205397c132212fc7f3eac51f2d8c961a338fbb72fd4c23706",
+        "result.json": "f033e2825f359035b0a37ecd25dc425c3b4ca3a6063aa88e42314b0aff5939fe",
+        "audit.json": "a9af74ed2a1f1fb9a3abefecd44dba80ef117308673d61074fcd74ff3daa9f3d",
+        "acceptance.json": "d8a1b1184f01c941753a0cd3df0f1ee4b673611664b883dbcc5b6e952904e4c7",
+        "business-review.json": "0b04f27b09bf2af548d211cd2b8e573238a5461f1c0a472afccba38d2144259b",
+        "browser-check.json": "a85aa1e7ec7e7009ff71a4a354048ec0b394ec42fc65813acf2a6bc94134a0c4"
+      },
+      "audit_record": "../../test-records/live-replaced-20261027/11-robot-parts-registration-completeness.md"
+    }
+  ]
+}
