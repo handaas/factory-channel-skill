@@ -17,7 +17,7 @@
         "business-review.json": "b6d0b5e236928a97f6f1dfc7a099be06fe22b43e94a2e525ac70191e9bae135d",
         "browser-check.json": "7e7cf3f127f9998ee2e82201e86fd30b33cf466209362ba812f235e40b28de2c"
       },
-      "audit_record": "../../test-records/live-replaced-20261027/05-industrial-robotics.md"
+      "audit_record": "../test-records/live-replaced-20261027/05-industrial-robotics.md"
     },
     {
       "skill": "factory-channel-skill",
@@ -35,7 +35,7 @@
         "business-review.json": "86bd76072cce3611e64ea74c81d84a6bb95224d93c954d39976506a09ff2a946",
         "browser-check.json": "9baeef2b51308c0f21e354ccec72707ed0ae1386bd9271818929e909d325946c"
       },
-      "audit_record": "../../test-records/live-replaced-20261027/09-byd-peer-scale-benchmark.md"
+      "audit_record": "../test-records/live-replaced-20261027/09-byd-peer-scale-benchmark.md"
     },
     {
       "skill": "factory-channel-skill",
@@ -53,7 +53,7 @@
         "business-review.json": "42f472054ca51f95ae8af0e276a9abd58f2e1c4d59fdf7b47e06b737b437435b",
         "browser-check.json": "40d6fb6d6c5e661eee2fea4a4d5eb26e3eba2e1a0c04b8ac4d212be379d941b8"
       },
-      "audit_record": "../../test-records/live-replaced-20261027/10-kuka-product-mix-screen.md"
+      "audit_record": "../test-records/live-replaced-20261027/10-kuka-product-mix-screen.md"
     },
     {
       "skill": "factory-channel-skill",
@@ -71,7 +71,7 @@
         "business-review.json": "0b04f27b09bf2af548d211cd2b8e573238a5461f1c0a472afccba38d2144259b",
         "browser-check.json": "a85aa1e7ec7e7009ff71a4a354048ec0b394ec42fc65813acf2a6bc94134a0c4"
       },
-      "audit_record": "../../test-records/live-replaced-20261027/11-robot-parts-registration-completeness.md"
+      "audit_record": "../test-records/live-replaced-20261027/11-robot-parts-registration-completeness.md"
     }
   ]
 }
