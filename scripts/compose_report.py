@@ -19,9 +19,11 @@ This file never prints secrets; MCP credentials live in the server's own .env.
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime as dt
 import json
 import pathlib
+import re as _re
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from common import (
@@ -390,23 +392,80 @@ def _reg_capital_text(value: Any) -> str:
 
 
 def _rank_pct(rank: Any, total: Any) -> Optional[str]:
-    """Format the upstream ordinal rank without reversing its direction."""
+    """Show the upstream ordinal rank without guessing which end is best."""
     r = _int(rank)
     t = _int(total)
     if r is None or not t or t <= 0:
         return None
     if r < 1 or r > t:
         return None
-    if r <= t / 2:
-        pct = r / t * 100
-        pct_str = f"{pct:.2f}%" if pct < 1 else f"{pct:.1f}%"
-        return f"前 {pct_str}（排名 {r}/{t}）"
-    pct = (t - r + 1) / t * 100
-    pct_str = f"{pct:.2f}%" if pct < 1 else f"{pct:.1f}%"
-    return f"后 {pct_str}（排名 {r}/{t}）"
+    return f"{r} / {t}"
 
 
-def build_core_analysis(analysis: Any, search: Any) -> Dict[str, Any]:
+def _trim_number(value: float) -> str:
+    text = f"{value:,.2f}"
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def _money_text(value: Any) -> str:
+    """Normalise a capital string/dict without inventing a unit.
+
+    ``1000.000000万人民币`` -> ``1,000 万人民币``;
+    ``570707084.0 人民币`` -> ``5.71 亿 人民币``.
+    """
+    if isinstance(value, dict):
+        if value.get("origin"):
+            return _text(value.get("origin"))
+        coin = _text(value.get("coinType"))
+        raw_value = value.get("value")
+    else:
+        coin = ""
+        raw_value = value
+    if raw_value in (None, ""):
+        return "-"
+    raw = _text(raw_value)
+    match = _re.match(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*(亿|万)?\s*(.*)$", raw)
+    if not match:
+        return f"{raw} {coin}".strip()
+    number = float(match.group(1))
+    unit = match.group(2) or ""
+    tail = match.group(3) or ""
+    coin = coin or tail
+    if unit:
+        return f"{_trim_number(number)} {unit} {coin}".strip()
+    if number >= 1e8:
+        return f"{_trim_number(number / 1e8)} 亿 {coin}".strip()
+    if number >= 1e4:
+        return f"{_trim_number(number / 1e4)} 万 {coin}".strip()
+    return f"{number:,.0f} {coin}".strip()
+
+
+def _product_tag_summary(value: Any, keyword: str) -> tuple[str, Dict[str, Any]]:
+    """Summarise upstream product tags while keeping the raw list in the row."""
+    raw = _join_list(value) if isinstance(value, list) else _text(value)
+    parts: List[str] = []
+    seen = set()
+    for part in _re.split(r"[、,，;；]", raw):
+        tag = part.strip()
+        if tag and tag not in seen:
+            seen.add(tag)
+            parts.append(tag)
+    if not parts:
+        return "", {"total": 0, "hits": 0, "others": 0}
+    token = "".join(str(keyword or "").casefold().split())
+    hits = [p for p in parts if token and token in "".join(p.casefold().split())]
+    others = [p for p in parts if p not in hits]
+    summary = f"上游标签 {len(parts)} 项"
+    if hits:
+        summary += f"，含关键词 {len(hits)} 项：{'、'.join(hits[:8])}"
+    if others:
+        summary += f"；其他标签 {len(others)} 项，如 {'、'.join(others[:4])}"
+    if len(hits) > 8 or len(others) > 4:
+        summary += "…"
+    return summary, {"total": len(parts), "hits": len(hits), "others": len(others)}
+
+
+def build_core_analysis(analysis: Any, search: Any, search_keyword: str = "") -> Dict[str, Any]:
     # 渠道分析 KV — 真实字段：financialStat.{categoryCount, regCapitalRank,
     # regCapitalScope} + salesStat.{categoryCount, annualTurnoverRank,
     # annualTurnoverScope}.
@@ -434,22 +493,30 @@ def build_core_analysis(analysis: Any, search: Any) -> Dict[str, Any]:
     # 渠道/供应商搜索明细表 — 真实字段：name / mainProducts(list) / foundTime /
     # regCapital({coinType, origin, value}) / nameId。
     search_rows: List[Dict[str, Any]] = []
+    token = "".join(str(search_keyword or "").casefold().split())
     for item in _first_list(search):
         if not isinstance(item, dict):
             continue
+        raw_products = _join_list(item.get("mainProducts")) or "-"
+        summary, tag_meta = _product_tag_summary(item.get("mainProducts"), search_keyword)
+        name = _text(item.get("name")) or "-"
         search_rows.append({
-            "渠道/供应商名称": _text(item.get("name")) or "-",
-            "主营产品": _join_list(item.get("mainProducts")) or "-",
+            "渠道/供应商名称": name,
+            "名称含关键词": "是" if token and token in "".join(name.casefold().split()) else "否",
+            "主营产品": summary or "-",
+            "主营产品原文": raw_products,
+            "主营标签统计": tag_meta,
             "成立时间": _text(item.get("foundTime")) or "-",
-            "注册资本": _reg_capital_text(item.get("regCapital")) or "-",
+            "注册资本": _money_text(item.get("regCapital")) or "-",
+            "注册资本原文": _text(item.get("regCapital")) or "-",
         })
 
     sections: List[Dict[str, Any]] = []
     if analysis_kv:
-        sections.append({"key": "channel_analysis", "title": "企业规模同行基准", "kind": "kv", "note": "注册资本 / 年营收在同行中的序位与区间；不代表渠道结构"})
+        sections.append({"key": "channel_analysis", "title": "企业规模同行基准", "kind": "kv", "note": "注册资本 / 年营收在上游同行口径中的排名与区间；排名方向未说明，不代表渠道结构"})
     if search_rows or (isinstance(search, dict) and search.get("total") is not None):
         total = _safe_total(search)
-        sections.append({"key": "channel_search", "title": "渠道/供应商明细", "kind": "table", "note": f"渠道/供应商记录 {total if total is not None else '若干'} 条，展示前 {len(search_rows)} 条", "columns": [("渠道/供应商名称", "渠道/供应商名称"), ("主营产品", "主营产品"), ("成立时间", "成立时间"), ("注册资本", "注册资本")]})
+        sections.append({"key": "channel_search", "title": "渠道/供应商明细", "kind": "table", "note": f"渠道/供应商记录 {total if total is not None else '若干'} 条，展示前 {len(search_rows)} 条；主营产品为上游标签摘要，原文保留在 JSON", "columns": [("渠道/供应商名称", "渠道/供应商名称"), ("名称含关键词", "名称含关键词"), ("主营产品（标签摘要）", "主营产品"), ("成立时间", "成立时间"), ("注册资本", "注册资本")]})
 
     return {
         "sections": sections,
@@ -489,35 +556,43 @@ def build_insights(subject: Mapping[str, Any], core: Mapping[str, Any], metrics:
             insights.append({
                 "feature": "本次采集候选字段",
                 "evidence": f"渠道/供应商明细 {len(search_rows)} 条。",
-                "interpretation": "本次采集仅展示名称、主营产品、成立时间与注册资本字段；未返回地址时不形成地域分布结论，也不据此认定优质或合格供应商。",
+                "interpretation": "本次采集仅展示名称、主营产品摘要、成立时间与注册资本字段；未返回地址时不形成地域分布结论，也不据此认定优质或合格供应商。",
+            })
+            name_hits = sum(1 for row in search_rows if row.get("名称含关键词") == "是")
+            tag_hits = sum(1 for row in search_rows if (row.get("主营标签统计") or {}).get("hits"))
+            tag_only = sum(1 for row in search_rows if row.get("名称含关键词") == "否" and (row.get("主营标签统计") or {}).get("hits"))
+            insights.append({
+                "feature": "名称与主营标签命中",
+                "evidence": f"本次展示 {len(search_rows)} 条中，名称含关键词 {name_hits} 条；主营标签含关键词 {tag_hits} 条，其中仅靠标签命中的 {tag_only} 条。",
+                "interpretation": "名称或标签命中只说明关键词按字面出现在上游字段中；同义词（如 KUKA/库卡）与拆分词未合并，标签集合也常含跨行业词，不代表渠道商主营该产品，也不证明代理/授权关系。",
             })
     else:
-        # 真实分析维度：注册资本分位 / 营收分位 / 区间。
-        cap_pct = analysis_kv.get("注册资本分位") or metric_map.get("注册资本分位")
+        # 真实分析维度：上游只给序位排名，未给方向。
+        cap_rank = analysis_kv.get("注册资本排名") or analysis_kv.get("注册资本分位") or metric_map.get("注册资本同行排名") or metric_map.get("注册资本分位")
         cap_scope = analysis_kv.get("注册资本区间") or metric_map.get("注册资本区间")
-        if cap_pct or cap_scope:
+        if cap_rank or cap_scope:
             parts = []
-            if cap_pct:
-                parts.append(f"注册资本分位 {cap_pct}")
+            if cap_rank:
+                parts.append(f"上游排名 {cap_rank}（上游未说明排名方向）")
             if cap_scope:
                 parts.append(f"区间 {cap_scope}")
             insights.append({
                 "feature": "注册资本同行位置",
                 "evidence": "、".join(parts) + "。",
-                "interpretation": "该分位只描述注册资本在上游同行口径中的序位与区间；不等同于实际资金、履约能力或抗风险能力。",
+                "interpretation": "上游只返回序位数值且未说明排名方向；区间为最高档时，排名与区间的关系需向数据方核对，不解读为前/后百分比，也不等同于实际资金或履约能力。",
             })
-        sales_pct = analysis_kv.get("营收分位") or metric_map.get("营收分位")
+        sales_rank = analysis_kv.get("营收排名") or analysis_kv.get("营收分位") or metric_map.get("营收同行排名") or metric_map.get("营收分位")
         sales_scope = analysis_kv.get("营收区间") or metric_map.get("营收区间")
-        if sales_pct or sales_scope:
+        if sales_rank or sales_scope:
             parts = []
-            if sales_pct:
-                parts.append(f"营收分位 {sales_pct}")
+            if sales_rank:
+                parts.append(f"上游排名 {sales_rank}（上游未说明排名方向）")
             if sales_scope:
                 parts.append(f"区间 {sales_scope}")
             insights.append({
                 "feature": "营收同行位置",
                 "evidence": "、".join(parts) + "。",
-                "interpretation": "该分位只描述营收在上游同行口径中的序位与区间；不等同于市场份额、销售网络或渠道能力。",
+                "interpretation": "上游只返回序位数值且未说明排名方向；该字段不等同于市场份额、销售网络或渠道能力。",
             })
         # 同行总数（行业体量）
         peer_total = analysis_kv.get("注册资本同行总数") or analysis_kv.get("营收同行总数")
@@ -553,13 +628,13 @@ def build_metrics(analysis: Any, search: Any) -> List[Dict[str, Any]]:
     if fin_rank is not None and fin_total and fin_total > 0:
         full_rank = _rank_pct(fin_rank, fin_total)
         short_rank = full_rank.split("（", 1)[0].strip() if full_rank else None
-        metrics.append({"label": "注册资本分位", "value": short_rank, "hint": "注册资本在同行中的序位", "delta": f"排名 {fin_rank}/{fin_total}"})
+        metrics.append({"label": "注册资本同行排名", "value": short_rank, "hint": "上游序位，未说明排名方向", "delta": f"排名 {fin_rank}/{fin_total}"})
     if fin.get("regCapitalScope"):
         metrics.append({"label": "注册资本区间", "value": _text(fin.get("regCapitalScope")), "hint": "注册资本规模区间"})
     if sales_rank is not None and sales_total and sales_total > 0:
         full_rank = _rank_pct(sales_rank, sales_total)
         short_rank = full_rank.split("（", 1)[0].strip() if full_rank else None
-        metrics.append({"label": "营收分位", "value": short_rank, "hint": "年营收在同行中的序位", "delta": f"排名 {sales_rank}/{sales_total}"})
+        metrics.append({"label": "营收同行排名", "value": short_rank, "hint": "上游序位，未说明排名方向", "delta": f"排名 {sales_rank}/{sales_total}"})
     if sales.get("annualTurnoverScope"):
         metrics.append({"label": "营收区间", "value": _text(sales.get("annualTurnoverScope")), "hint": "年营收规模区间"})
     if isinstance(search, dict) and search.get("total") is not None:
@@ -600,6 +675,8 @@ def build_abstract(subject: Mapping[str, Any], core: Mapping[str, Any], metrics:
             parts.append("渠道检索调用受阻，未形成检索明细。")
         elif search_status == "empty":
             parts.append("渠道检索调用成功但结果为空。")
+        else:
+            parts.append(f"本次展示 {len(core.get('channel_search') or [])} 条；主营产品为上游标签摘要，命中不等于代理或授权关系。")
     else:
         name = subject.get("enterprise") or subject.get("match_raw") or "目标企业"
         if subject.get("requires_confirmation"):
@@ -609,7 +686,10 @@ def build_abstract(subject: Mapping[str, Any], core: Mapping[str, Any], metrics:
     if metrics:
         kv = "、".join(f"{m['label']} {m['value']}" for m in metrics[:5])
         parts.append(f"关键指标包括：{kv}。")
-    parts.append("检索结果仅为公开数据样本；错误、空结果或待确认主体不计入有效覆盖。")
+    if mode in ("search", "combined"):
+        parts.append("检索结果仅为公开数据样本；错误、空结果或待确认主体不计入有效覆盖。")
+    else:
+        parts.append("同行排名与区间仅按上游口径展示；未说明排名方向时不做前/后百分比解读。")
     return "".join(parts)
 
 
@@ -627,39 +707,44 @@ def build_dry_run_payload(raw: str, keyword_type: str) -> Dict[str, Any]:
     subject = {**subject, "match_raw": raw, "keywordType": keyword_type}
     core = sample.get("core_analysis") or {}
     metrics = sample.get("metrics") or []
-    return _assemble(subject, core, metrics, dry_run=True, search_mode=bool(subject.get("search_mode")))
+    return apply_content_review(_assemble(subject, core, metrics, dry_run=True, search_mode=bool(subject.get("search_mode"))))
 
 
 # --------------------------------------------------------------------------- #
 # Assembly
 # --------------------------------------------------------------------------- #
 
+def _quality_report(core: Mapping[str, Any]) -> Dict[str, Any]:
+    """Section-fill rate from final declared sections and their actual bodies.
+
+    ``0`` is a populated body; None/''/[]/{} is empty. Not an accuracy score.
+    """
+    ca = core if isinstance(core, dict) else {}
+    sections = ca.get("sections")
+    if isinstance(sections, list):
+        total = len(sections)
+        populated = sum(1 for s in sections if isinstance(s, dict) and ca.get(s.get("key")) not in (None, "", [], {}))
+    else:
+        keys = [k for k in ca if k not in ("sections", "source_status")]
+        total = len(keys)
+        populated = sum(1 for k in keys if ca.get(k) not in (None, "", [], {}))
+    return {
+        "total_sections": total,
+        "populated_sections": populated,
+        "empty_sections": total - populated,
+        "coverage_pct": round(populated / max(1, total) * 100),
+    }
+
+
 def _assemble(subject: Mapping[str, Any], core: Mapping[str, Any], metrics: Sequence[Mapping[str, Any]], *, dry_run: bool, search_mode: bool = False) -> Dict[str, Any]:
     abstract = build_abstract(subject, core, metrics)
     records = build_records(core)
     insights = build_insights(subject, core, metrics)
-    # Quality gate follows requested MCP dimensions and explicit source status.
     ca = core if isinstance(core, dict) else {}
     status_value = ca.get("source_status")
     statuses: Dict[str, Any] = status_value if isinstance(status_value, dict) else {}
-    requested = [v for v in statuses.values() if v != "not_requested"]
-    if requested:
-        total_secs = len(requested)
-        populated = sum(1 for value in requested if value == "success")
-    else:
-        sections_value = ca.get("sections")
-        secs: List[Any] = sections_value if isinstance(sections_value, list) else []
-        total_secs = max(1, len(secs))
-        populated = sum(
-            bool(isinstance(section, dict) and ca.get(section.get("key")) not in (None, "", [], {}))
-            for section in secs
-        )
-    quality_report = {
-        "total_sections": total_secs,
-        "populated_sections": populated,
-        "empty_sections": total_secs - populated,
-        "coverage_pct": round(populated / max(1, total_secs) * 100),
-    }
+    quality_report = _quality_report(core)
+    populated = quality_report["populated_sections"]
     if populated == 0:
         import sys
         print("⚠️ 质量门禁警告: 所有核心分析维度均无数据", file=sys.stderr)
@@ -696,6 +781,164 @@ def _assemble(subject: Mapping[str, Any], core: Mapping[str, Any], metrics: Sequ
             "mode": mode,
         },
     }
+
+
+def _neutral_rank(value: Any) -> Optional[str]:
+    """Convert an old '后 0.02%（排名 433897/433988）' string to a neutral rank."""
+    text = _text(value)
+    match = _re.search(r"(\d+)\s*/\s*(\d+)", text)
+    if match:
+        return f"{match.group(1)} / {match.group(2)}"
+    if text and text != "-":
+        return f"{text}（上游未说明方向）"
+    return None
+
+
+def _review_channel_analysis(kv: Mapping[str, Any]) -> Dict[str, Any]:
+    out = dict(kv)
+    for old_key, new_key in (("注册资本分位", "注册资本排名"), ("营收分位", "营收排名")):
+        if old_key in out:
+            neutral = _neutral_rank(out.pop(old_key))
+            if neutral:
+                out[new_key] = neutral
+    return out
+
+
+def _review_metrics(metrics: Sequence[Mapping[str, Any]], kv: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    seen = set()
+    for raw in metrics:
+        if not isinstance(raw, dict):
+            continue
+        metric = dict(raw)
+        label = str(metric.get("label") or "")
+        if label in ("注册资本分位", "营收分位"):
+            source = kv.get("注册资本排名" if label == "注册资本分位" else "营收排名")
+            neutral = _neutral_rank(metric.get("delta")) or _neutral_rank(source) or _neutral_rank(metric.get("value"))
+            label = "注册资本同行排名" if label == "注册资本分位" else "营收同行排名"
+            metric["value"] = neutral or metric.get("value")
+            metric["hint"] = "上游序位，未说明排名方向"
+        metric["label"] = label
+        if label in seen:
+            continue
+        seen.add(label)
+        out.append(metric)
+    return out
+
+
+def _review_search_rows(rows: Sequence[Mapping[str, Any]], keyword: str) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    token = "".join(str(keyword or "").casefold().split())
+    for raw in rows:
+        if not isinstance(raw, dict):
+            continue
+        row = dict(raw)
+        raw_products = row.get("主营产品原文") or row.get("主营产品") or "-"
+        if isinstance(raw_products, list):
+            raw_products = _join_list(raw_products) or "-"
+        row["主营产品原文"] = raw_products
+        existing_summary = str(row.get("主营产品") or "")
+        existing_meta = row.get("主营标签统计")
+        if str(raw_products).strip() in ("", "-"):
+            summary, meta = "", {"total": 0, "hits": 0, "others": 0}
+        elif existing_summary.startswith("上游标签") and isinstance(existing_meta, dict):
+            # Already organised by the current normal generator or a prior
+            # review: keep its summary instead of re-tokenising it.
+            summary, meta = existing_summary, existing_meta
+        else:
+            summary, meta = _product_tag_summary(raw_products, keyword)
+        row["主营产品"] = summary or "-"
+        row["主营标签统计"] = meta
+        name = str(row.get("渠道/供应商名称") or "")
+        row["名称含关键词"] = "是" if token and token in "".join(name.casefold().split()) else "否"
+        old_cap = str(row.get("注册资本") or "")
+        if old_cap and old_cap != "-" and "注册资本原文" not in row:
+            row["注册资本原文"] = old_cap
+            row["注册资本"] = _money_text(old_cap) or "-"
+        out.append(row)
+    return out
+
+
+def apply_content_review(report: Mapping[str, Any], *, source_sha256: Optional[str] = None,
+                         reviewed_at: Optional[str] = None) -> Dict[str, Any]:
+    """Rebuild factory-channel narrative content offline from an existing payload.
+
+    Uses only fields already present. No MCP call, no new facts. Fixes:
+    * a rank converted to "前/后 X%" although the upstream never states the
+      ranking direction (BYD's top-bucket capital was rendered as bottom 0.02%);
+    * raw upstream tag dumps presented as product lists, with six-decimal
+      capital strings;
+    * keyword hits in names/tags left unmarked, making a supplier search look
+      like a verified channel relationship.
+    """
+    out = copy.deepcopy(dict(report))
+    subject = dict(out.get("subject") or {})
+    ds = dict(out.get("data_source") or {})
+    core = dict(out.get("core_analysis") or {})
+    keys = [s.get("key") for s in core.get("sections", []) if isinstance(s, dict)]
+    if not keys:
+        keys = [key for key in core if key not in {"sections", "source_status"}]
+    has_body = any(core.get(key) not in (None, "", [], {}) for key in keys)
+    if subject.get("requires_confirmation") or not has_body:
+        ds["quality_report"] = _quality_report(out.get("core_analysis") or {})
+        ds["content_revision"] = {
+            "mode": "offline_source_preserving",
+            "source_sha256": source_sha256,
+            "original_generated_at": ds.get("generated_at"),
+            "reviewed_at": reviewed_at or dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+            "scope": ("主体存在多候选：保留原停止说明，不重算业务结论"
+                      if subject.get("requires_confirmation") else
+                      "无有效业务章节：保留原始空结果或调用失败说明，不生成业务结论"),
+        }
+        out["data_source"] = ds
+        return out
+    keyword = str(subject.get("search_keyword") or subject.get("match_raw") or subject.get("matchKeyword") or "")
+    kv = _review_channel_analysis(core.get("channel_analysis") or {})
+    core["channel_analysis"] = kv
+    core["channel_search"] = _review_search_rows(core.get("channel_search") or [], keyword)
+    sections = []
+    for spec in core.get("sections") or []:
+        if isinstance(spec, dict):
+            spec = dict(spec)
+            if spec.get("key") == "channel_search":
+                spec["columns"] = [("渠道/供应商名称", "渠道/供应商名称"), ("名称含关键词", "名称含关键词"),
+                                   ("主营产品（标签摘要）", "主营产品"), ("成立时间", "成立时间"),
+                                   ("注册资本", "注册资本")]
+                note = str(spec.get("note") or "")
+                if "主营产品为上游标签摘要" not in note:
+                    spec["note"] = note + "；主营产品为上游标签摘要，原文保留在 JSON"
+            elif spec.get("key") == "channel_analysis":
+                note = str(spec.get("note") or "")
+                if not note or "分位" in note:
+                    spec["note"] = "注册资本 / 年营收在上游同行口径中的排名与区间；排名方向未说明，不代表渠道结构"
+        sections.append(spec)
+    core["sections"] = sections
+    metrics = _review_metrics(out.get("metrics") or [], kv)
+    insights = build_insights(subject, core, metrics)
+    abstract = build_abstract(subject, core, metrics)
+    old_abstract = str(out.get("abstract") or "")
+    marker = "明细含未完整采集的来源"
+    if marker in old_abstract:
+        # attach_pagination() appends this disclosure after the review; keep it
+        # when an already-attached report is reviewed again offline.
+        abstract += old_abstract[old_abstract.index(marker):]
+    out["core_analysis"] = core
+    out["metrics"] = metrics
+    out["insights"] = insights
+    out["abstract"] = abstract
+    out["summary"] = abstract
+    out["executive_summary"] = [i.get("interpretation") for i in insights][:5] or [abstract[:120]]
+    out["representative_records"] = build_records(core)
+    ds["quality_report"] = _quality_report(core)
+    ds["content_revision"] = {
+        "mode": "offline_source_preserving",
+        "source_sha256": source_sha256,
+        "original_generated_at": ds.get("generated_at"),
+        "reviewed_at": reviewed_at or dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "scope": "撤销无依据的前/后分位；标签摘要化并保留原文；规范注册资本；标注名称/标签命中；未新增查询",
+    }
+    out["data_source"] = ds
+    return out
 
 
 @paid_call_scope
@@ -735,7 +978,11 @@ def build_payload(raw: str, keyword_type: str, search_keyword: Optional[str], ad
         search_mode,
         enterprise_requested=bool(raw),
     )
-    core = build_core_analysis(analysis, search)
+    if search_keyword:
+        # Keep the search keyword distinct from the enterprise name so offline
+        # review can re-check name/tag hits in combined mode.
+        subject["search_keyword"] = search_keyword
+    core = build_core_analysis(analysis, search, search_keyword or "")
     core["source_status"] = {
         "channel_analysis": "requires_confirmation" if resolved.get("requires_confirmation") else _payload_status(analysis) if raw else "not_requested",
         "channel_search": _payload_status(search) if search_keyword else "not_requested",
@@ -745,8 +992,8 @@ def build_payload(raw: str, keyword_type: str, search_keyword: Optional[str], ad
     # --- Enterprise profile enrichment (from fuzzy_search) ---
     if not resolved.get("requires_confirmation"):
         _enrich_metrics_with_profile(metrics, resolved.get("record") if isinstance(resolved, dict) else None)
-    return attach_pagination(_assemble(subject, core, metrics, dry_run=False, search_mode=search_mode),
-                             {"渠道/供应商搜索": search})
+    report = apply_content_review(_assemble(subject, core, metrics, dry_run=False, search_mode=search_mode))
+    return attach_pagination(report, {"渠道/供应商搜索": search})
 
 
 # --------------------------------------------------------------------------- #

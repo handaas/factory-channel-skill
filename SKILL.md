@@ -77,6 +77,33 @@ description: Use for generating a professional factory channel analysis report (
 5. **渲染三件套**：`compose_report.py --enterprise ... --output ... --report-output ...` 直接产出 JSON + HTML + Markdown；或 `render_report.py --input ... --output ...` 重渲染。
 6. **返回路径**：返回 JSON、HTML、Markdown 文件路径，以及企业全称映射与数据口径（含模式标注）。
 
+## 内容整理与交付审校
+
+1. **排名方向未说明**：`regCapitalRank` / `annualTurnoverRank` 只有序位，没有“1=最大”说明。不得把排名换算成“前/后 X%”；比亚迪 91 亿注册资本、区间 5000+ 被写成“后 0.02%”即为反例。写“上游排名 433897 / 433988（方向未说明）”，并提示向数据方核对。
+2. **主营产品是标签集合**：`mainProducts` 是渠道商标签，常混入跨行业词（库卡渠道商同时出现“帆布/防护服/电梯电源”）。报告保留标签总数、关键词命中项与其他标签示例，原文放 `主营产品原文`；不把标签列表当经营品类或代理清单。
+3. **字面命中不是代理关系**：名称/标签含“库卡/机器人”只说明关键词出现在上游字段；同义词（KUKA/库卡）与拆分词未合并。报告标“名称含关键词”与标签命中数，提示核对品牌授权、供货合同与主体。
+4. **注册资本规范化**：`1000.000000万人民币` 写 `1,000 万 人民币`，`570707084.0 人民币` 写 `5.71 亿 人民币`；原文保留 `注册资本原文`。
+5. **检索命中数不是渠道数**：total 是关键词筛选结果，含贸易商、维修商与泛工业品商；不称“可合作渠道”“合格供应商”或“供给密度”。
+6. **地址缺失**：未返回地址时写“上游未返回”，不用关键词地区反填，也不生成地域分布。
+7. **内容整理（正常生成 + 离线修订）**：正常 `build_payload`（含企业/渠道检索/组合模式）与 `--dry-run` 样例生成在写 JSON/HTML/MD 前自动调用 `apply_content_review(report)`；同一函数也可基于已有 JSON 撤销无依据的前/后分位、摘要标签、规范资本、标注命中，不调用 MCP、不改企业名称与原始标签。离线修订件写 `output/content-quality-review/<case>/`。
+
+```bash
+python - <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+sys.path.insert(0, "scripts")
+import compose_report as cr
+src = Path("examples/09-byd-peer-scale-benchmark/report.json")
+raw = src.read_bytes()
+report = cr.apply_content_review(json.loads(raw), source_sha256=hashlib.sha256(raw).hexdigest())
+out = Path("output/content-quality-review/09-byd-peer-scale-benchmark")
+out.mkdir(parents=True, exist_ok=True)
+(out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+PY
+```
+
+- **渲染前置检查**：执行会产出含图表 HTML / PDF 的报告命令前，先验证 `node --version` 与本 skill 自带 `assets/vendor/echarts.min.js` 存在；内嵌静态 SVG 的生成需要 Node.js（推荐当前 LTS，无需 npm 包），缺失时报告生成明确报错。查看已生成的 HTML 与 Markdown 输出不需要 Node。
+
 ## 脚本速查
 
 ```bash
@@ -127,7 +154,7 @@ python scripts/render_report.py --input output/channel.json --output output/chan
 
 - `subject`：企业全称、匹配关键词、主体类型、是否自动补全、是否渠道检索模式。
 - `abstract` / `summary`：封面摘要与详细摘要。
-- `metrics`：渠道总数、同行平均渠道数、渠道数量同行排名、供应商总数、覆盖区域数、渠道/供应商命中数等指标卡。
+- `metrics`：渠道总数、同行平均渠道数、渠道数量同行排名、供应商总数、覆盖区域数、渠道/供应商命中数等指标卡；注册资本/营收只展示上游序位排名与区间，方向未说明。
 - `caliber`：匹配对象、匹配方式（含模式标注）、数据范围、产品、局限。
 - `core_analysis`：渠道分析（KV）、渠道搜索明细（表）。
 - `representative_records`：代表性渠道/供应商记录。
