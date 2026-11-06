@@ -37,6 +37,7 @@
     .biz-metric .m-tag.t-down { color:#dc2626; }
     .biz-metric .m-tag.t-neutral { color:#6366f1; }
     .biz-metric .m-value { color:#0b3768; font-size:26px; line-height:1.1; font-weight:900; letter-spacing:-.02em; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; margin-top:auto; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+    .biz-metric .m-hint { color:#64748b; font-size:11px; line-height:1.5; margin-top:6px; text-align:left; }
     .biz-metric .m-value .m-tag.t-up { color:#16a34a; }
     .biz-metric .m-value .m-tag.t-down { color:#dc2626; }
     .biz-metric .m-value .m-tag.t-neutral { color:#6366f1; }
@@ -218,8 +219,10 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   var status=window.__handaas_chart_status={state:'waiting',total:0,ready:0,failed:0};
   var timer=null, retries=0, MAX_RETRIES=100;
   var layoutRetries=0, MAX_LAYOUT_RETRIES=50;
-  var PALETTE=['#0b5ca8','#0284c7','#0b3768','#d97706','#059669','#dc2626','#7c3aed','#db2777','#0891b2','#65a30d'];
-  var FONTS='-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  var MSG_LOADING='图表库正在加载，数据明细仍可查看。';
+  var MSG_MISSING='图表交互不可用，已保留静态图表，数据明细仍可查看。';
+  var MSG_LAYOUT='图表等待布局完成后渲染，数据明细仍可查看。';
+  var MSG_FAILED='图表交互初始化失败，已保留静态图表，数据明细仍可查看。';
   function summarize(nodes){
     status.total=nodes.length;status.ready=0;status.failed=0;
     nodes.forEach(function(el){
@@ -229,18 +232,40 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
     status.state=status.ready===status.total?'ready':
       (status.ready+status.failed===status.total?(status.ready?'degraded':'error'):'waiting');
   }
+  function frameOf(el){
+    var p=el.parentElement;
+    if(p&&(' '+p.className+' ').indexOf(' chart-frame ')>-1){return p;}
+    return null;
+  }
+  function setStatus(el,msg){
+    var f=frameOf(el);
+    if(f){
+      var p=f.querySelector('.chart-status');
+      if(p){p.textContent=msg;}
+    }else{
+      el.textContent=msg;
+    }
+  }
   function raf(fn){if(window.requestAnimationFrame){window.requestAnimationFrame(fn);}else{fn();}}
+  function hasGeometry(chart,el){
+    if(!chart || chart.getWidth()<2 || chart.getHeight()<2){return false;}
+    var svg=el.querySelector('svg');
+    if(!svg){return false;}
+    return !!svg.querySelector('path,rect,circle,line,text,polygon,polyline');
+  }
   function boot(){
     if(document.readyState==='loading'){return;}
     var nodes=document.querySelectorAll('.chart-canvas');
     if(!nodes.length){summarize(nodes);return;}
-    if(!window.echarts || typeof window.echarts.init!=='function'){
+    if(!window.echarts || typeof window.echarts.init!=='function' || typeof window.handaasChartOption!=='function'){
       var exhausted=retries>=MAX_RETRIES;
       nodes.forEach(function(el){
         if(el.__handaas_chart_ready){return;}
         el.__handaas_dependency_error=true;
         el.setAttribute('data-chart-state',exhausted?'error':'waiting');
-        el.textContent=exhausted?'图表库加载失败或不可用，请查看数据明细或重新生成离线报告。':'图表库正在加载，数据明细仍可查看。';
+        setStatus(el,exhausted?MSG_MISSING:MSG_LOADING);
+        var f=frameOf(el);
+        if(f){f.setAttribute('data-chart-state',exhausted?'error':'static');}
       });
       summarize(nodes);
       if(!exhausted && timer===null){
@@ -253,6 +278,7 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
     var pendingLayout=0;
     nodes.forEach(function(el){
       if(el.__handaas_chart_ready){return;}
+      var f=frameOf(el);
       if(el.getAttribute('data-chart-state')==='error' && !el.__handaas_dependency_error){return;}
       if(window.ResizeObserver && !el.__handaas_resize_observer){
         el.__handaas_resize_observer=new ResizeObserver(function(){
@@ -264,7 +290,8 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
       }
       if((el.getClientRects && el.getClientRects().length===0) || el.clientWidth<2 || el.clientHeight<2){
         el.setAttribute('data-chart-state','waiting');
-        el.textContent='图表等待布局完成后渲染，数据明细仍可查看。';
+        setStatus(el,MSG_LAYOUT);
+        if(f){f.setAttribute('data-chart-state','static');}
         pendingLayout++;
         return;
       }
@@ -274,46 +301,36 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
         if(!raw){throw new Error('Missing chart configuration');}
         // getAttribute already decodes HTML entities; a second decode corrupts labels.
         var spec=JSON.parse(raw);
-        if(['line','bar','pie','gauge','radar'].indexOf(spec.type)<0){throw new Error('Unsupported chart type');}
+        var opt=window.handaasChartOption(spec);
+        if(!opt){throw new Error('Unsupported chart type');}
         el.textContent='';
         chart=window.echarts.init(el,null,{renderer:'svg'});
-      var opt={color:PALETTE,tooltip:{trigger: spec.type==='pie'?'item':'axis'},textStyle:{fontFamily:FONTS,fontSize:12,color:'#334155'},grid:{left:48,right:24,top:30,bottom:40},legend:{top:0,textStyle:{fontSize:11}}};
-      if(spec.type==='line'){
-        opt.xAxis={type:'category',data:spec.x,axisLabel:{fontSize:11,interval:0,rotate: spec.x && spec.x.length>6?35:0}};
-        opt.yAxis={type:'value'};
-        opt.series=spec.series.map(function(s){return{name:s.name,type:'line',smooth:true,areaStyle: spec.area?{opacity:0.18}:undefined,stack: spec.stack?s.name:undefined,data:s.data,label:{show:true,position:'top',fontSize:11}};});
-        if(spec.stack){opt.tooltip={trigger:'axis'};}
-      }else if(spec.type==='bar'){
-        var horiz=spec.orient==='h';
-        var cats=spec.names, vals=spec.values;
-        if(horiz){opt.yAxis={type:'category',data:cats,axisLabel:{fontSize:11}};opt.xAxis={type:'value'};opt.grid={left:120,right:30,top:20,bottom:30};}
-        else{opt.xAxis={type:'category',data:cats,axisLabel:{fontSize:11,interval:0,rotate: cats&&cats.length>6?35:0}};opt.yAxis={type:'value'};}
-        opt.series=[{type:'bar',data:vals,itemStyle:{color:PALETTE[0]},label:{show:true,position: horiz?'right':'top',fontSize:11},barMaxWidth:42}];
-        opt.tooltip={trigger:'axis',axisPointer:{type:'shadow'}};
-      }else if(spec.type==='pie'){
-        opt.series=[{type:'pie',radius: spec.donut?['42%','68%']:'68%',center:['50%','55%'],data:spec.data,itemStyle:{borderColor:'#fff',borderWidth:2},label:{fontSize:11,formatter:'{b}: {c} ({d}%)'}}];
-        opt.legend={bottom:0,textStyle:{fontSize:11}};
-        opt.tooltip={trigger:'item',formatter:'{b}: {c} ({d}%)'};
-      }else if(spec.type==='gauge'){
-        var v=spec.value, mx=spec.max||100;
-        var col=v/mx>0.66?'#dc2626':(v/mx>0.33?'#d97706':'#059669');
-        opt.series=[{type:'gauge',min:0,max:mx,progress:{show:true,width:14,itemStyle:{color:col}},axisLine:{lineStyle:{width:14}},axisTick:{show:false},splitLine:{length:8,lineStyle:{color:'#fff'}},pointer:{width:5},detail:{valueAnimation:true,formatter:'{value}',fontSize:28,color:col,offsetCenter:[0,'30%']},data:[{value:v,name:spec.level||''}],title:{fontSize:13,color:'#475569',offsetCenter:[0,'62%']}}];
-      }else if(spec.type==='radar'){
-        opt.radar={indicator:spec.indicators,radius:'62%',axisName:{color:'#475569',fontSize:11},splitArea:{areaStyle:{color:['#f8fbff','#eef4fb']}}};
-        opt.series=[{type:'radar',areaStyle:{opacity:0.18},data:spec.series}];
-      }
         chart.setOption(opt);
+        // Real synchronous flush: setOption already flushes internally, but
+        // drive the zrender painter once more before the geometry gate. Any
+        // throw here falls into catch and keeps the static SVG.
+        var zr=chart.getZr();
+        if(zr && typeof zr.flush==='function'){zr.flush();}
+        // Never reveal the interactive layer (and never hide the static SVG)
+        // before real SVG geometry exists on the canvas overlay.
+        if(!hasGeometry(chart,el)){throw new Error('Empty chart geometry');}
         el.__handaas_chart=chart;
         el.__handaas_chart_ready=true;
         el.__handaas_dependency_error=false;
         el.setAttribute('data-chart-state','ready');
         window.__echarts_instances.push(chart);
+        if(f){
+          f.setAttribute('data-chart-state','ready');
+          var p=f.querySelector('.chart-status');
+          if(p){p.textContent='';}
+        }
         raf(function(){try{chart.resize();}catch(ignored){}});
       }catch(e){
         if(chart && typeof chart.dispose==='function'){try{chart.dispose();}catch(ignored){}}
         el.__handaas_dependency_error=false;
         el.setAttribute('data-chart-state','error');
-        el.textContent='图表绘制失败，请查看数据明细。';
+        setStatus(el,MSG_FAILED);
+        if(f){f.setAttribute('data-chart-state','error');}
       }
     });
     summarize(nodes);
@@ -363,7 +380,7 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
         <h1>工业机器人 渠道检索报告</h1>
         <p class="report-lead">本报告以“工业机器人”为检索范围，呈现渠道/供应商检索结果及其状态。关键指标包括：渠道/供应商 10565。检索结果仅为公开数据样本；错误、空结果或待确认主体不计入有效覆盖</p>
         <div class="abstract-box">报告涵盖查询对象、数据总览、核心分析、代表性记录与结构洞察，所有数据均标注口径与来源。</div>
-        <div class="biz-metrics"><div class="biz-metric"><span class="m-name">渠道/供应商</span><span class="m-tag"></span><span class="m-value">10565</span></div><div class="biz-metric"><span class="m-name">渠道检索规模</span><span class="m-tag"></span><span class="m-value">10,565 条</span></div><div class="biz-metric"><span class="m-name">当前页候选字段</span><span class="m-tag"></span><span class="m-value">10 条</span></div><div class="biz-metric-empty"></div></div>
+        <div class="biz-metrics"><div class="biz-metric"><span class="m-name">渠道/供应商</span><span class="m-tag"></span><span class="m-value">10565</span><span class="m-hint">渠道搜索命中数</span></div><div class="biz-metric-empty"></div><div class="biz-metric-empty"></div><div class="biz-metric-empty"></div></div>
         <ul class="exec-list"><li>该数值仅是上游检索命中总数；不直接等同于供给密度、可合作数量或合格供应商数量。</li><li>当前页仅展示名称、主营产品、成立时间与注册资本字段；未返回地址时不形成地域分布结论，也不据此认定优质或合格供应商。</li></ul>
         <div class="cover-findings"><h3 class="cover-findings-title">核心发现</h3><div class="cover-findings-grid"><div class="finding-card"><p class="f-label">渠道检索规模</p><p class="f-text">检索命中渠道/供应商 10565 条。</p></div><div class="finding-card"><p class="f-label">当前页候选字段</p><p class="f-text">渠道/供应商明细 10 条。</p></div></div></div>
         <div class="cover-dimensions"><span class="dim-label">分析维度</span><div class="dim-tags"><span class="dim-tag">渠道/供应商明细</span></div></div>
@@ -374,7 +391,7 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   <main class="research-doc">
     <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>报告摘要</h2><p class="biz-section-note">概述分析对象、数据覆盖范围与核心发现。</p></div><span class="biz-tag">Summary</span></div><p class="biz-summary">本报告以“工业机器人”为检索范围，呈现渠道/供应商检索结果及其状态。关键指标包括：渠道/供应商 10565。检索结果仅为公开数据样本；错误、空结果或待确认主体不计入有效覆盖</p></section>
     <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>查询对象与口径</h2><p class="biz-section-note">说明匹配对象、匹配方式与数据范围。</p></div><span class="biz-tag">Caliber</span></div><div class="info-list"><div class="info-row"><span class="info-label">匹配对象</span><span class="info-value">工业机器人</span></div><div class="info-row"><span class="info-label">匹配方式</span><span class="info-value">渠道检索模式：按渠道关键词 / 地址检索渠道与供应商，与特定企业主体无关</span></div><div class="info-row"><span class="info-label">数据范围</span><span class="info-value">渠道/供应商明细</span></div><div class="info-row"><span class="info-label">局限说明</span><span class="info-value">仅为渠道/供应商关键词检索当前页样本，不包含企业同行基准；空结果或调用错误不构成企业分析结论。</span></div></div></section>
-    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>数据总览</h2><p class="biz-section-note">关键指标一览。</p></div><span class="biz-tag">Metrics</span></div><div class="biz-metrics"><div class="biz-metric"><span class="m-name">渠道/供应商</span><span class="m-tag"></span><span class="m-value">10565</span></div><div class="biz-metric"><span class="m-name">渠道检索规模</span><span class="m-tag"></span><span class="m-value">10,565 条</span></div><div class="biz-metric"><span class="m-name">当前页候选字段</span><span class="m-tag"></span><span class="m-value">10 条</span></div><div class="biz-metric-empty"></div></div></section>
+    <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>数据总览</h2><p class="biz-section-note">关键指标一览。</p></div><span class="biz-tag">Metrics</span></div><div class="biz-metrics"><div class="biz-metric"><span class="m-name">渠道/供应商</span><span class="m-tag"></span><span class="m-value">10565</span><span class="m-hint">渠道搜索命中数</span></div><div class="biz-metric-empty"></div><div class="biz-metric-empty"></div><div class="biz-metric-empty"></div></div></section>
     <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>核心分析</h2><p class="biz-section-note">按维度展开目标核心数据与结构化明细。</p></div><span class="biz-tag">Analysis</span></div><h3 class="biz-subsection-title">渠道/供应商明细</h3><p class="biz-section-note">渠道/供应商记录 10565 条，展示前 10 条</p><div class="table-wrap"><table><thead><tr><th>渠道/供应商名称</th><th>主营产品</th><th>成立时间</th><th>注册资本</th></tr></thead><tbody><tr><td>上海思奉贸易有限公司</td><td>工业自动化控制设、联轴器、KUKA库卡、模块、电动螺丝刀、vahle、过滤器、泵阀、电磨、进口贸易、夹具、编码器、气动工具、传感器、焊接配件、滤芯、德国机械产品及备件、电阻、工控原件、dold继电器、变送器、滚筒、液压工具、BEKO贝克欧、PLC、电动气动工具、制动器、电源、电机、可控硅、继电器、五金、进口泵阀、ATLAS阿特拉、焊接设备、RDP传感器、钳工工具、bartec、焊机设备、工业机器人、工业阀、GEMU盖米泵阀、电焊机、工业泵、工装夹具、工件夹具、工控产品、仪器仪表、机械设备、hbm、gemu、KUKA机器人、atlas、焊机、电动工具、气动打磨机、阻尼器、称重传感器、气缸、FRONIUS焊、变压器、光栅、自动化控制设备</td><td>2015-04-02</td><td>1000.000000万人民币</td></tr><tr><td>佛山市金杰铖贸易有限公司</td><td>机器配件、电源板、计算机板、机器手臂、工业机器、齿轮减速机、扩展板、通讯基板、接口板、组装机、伺服板、弧焊板、机械臂、扩展大板、通讯线、机器人、外部轴卡、动力线、电源模块、机械手、控制电源、柜主板、驱动模块、安全板、示教器</td><td>2012-10-18</td><td>100.0万人民币</td></tr><tr><td>厦门毅鑫鑫贸易有限公司</td><td>光电传感器、美国ASCO、减压器、日本欧姆龙、密封垫、燃气阀、瑞士堡盟、美国Mac、ab罗克韦尔、日本SMC、增压阀、传感器、mac电气、电磁阀</td><td>2016-11-29</td><td>50.000000万人民币</td></tr><tr><td>广州艾可自动化贸易有限公司</td><td>机器人的技术研究、固态继电器、温度控制器、电子、通信与自动控制技术研究、电路保护熔断器、网络技术的研究、太阳能技术研究、非许可类医疗器械、变压器、熔断器</td><td>2003-04-24</td><td>500.000000万人民币</td></tr><tr><td>滕州市起帆商贸有限公司</td><td>高精度机械手、圆锥滚子轴承、工业机械臂、轴承、直线导轨、工业机器人、滚珠丝杆、关节型机器人、机器人、进口轴承、六轴机器人、四轴机器人、协作机器人、集中润滑</td><td>2013-03-28</td><td>50.000000万人民币</td></tr><tr><td>烟台腾飞工贸有限公司</td><td>大梁校正仪、二保焊机、四轮定位、校正仪、汽车相关、各种配件、举升机、钣金工具/钣金修、二保焊机/举升机、钣金修复机、涂装流水生产线、四轮定位仪、烤漆房、工业涂装设备、汽车大梁校正仪</td><td>2009-06-19</td><td>2000.000000万人民币</td></tr><tr><td>上海山合海融商贸有限公司</td><td>衡器、光学仪器、智能车载设备、绝缘产品、按钮信号灯、测高仪、劳动保护用品、金属制品、断路器、操作杆、人工智能硬件、微型断路器、智能仪器仪表、电线、绝缘垫、电工器材、智能家庭消费设备、电缆、照明器具、电气机械设备、液压工具、电容器及其配套设备、液体分离及纯净设备、电阻测试仪、电容器、电气设备、继电器、电力电子元器件、互联网、泵及真空设备、智能输配电及控制设备、零部件、验电器、安防设备、气体、检电器、核相仪、消防器材、风动和电动工具、工业机器人、防电弧产品、绝缘手套、电子测量仪器、光伏设备及元器件、绝缘毯、液压动力机械及元件、仪器仪表、接地线、智能机器人、机械设备、行程开关、特种劳动防护用品、橡胶制品、可穿戴智能设备、塑料制品、绝缘靴、工具、机械零件、接触器、避雷器、互感器</td><td>2005-10-19</td><td>50.000000万人民币</td></tr><tr><td>青岛催汇兴贸易有限公司</td><td>橡塑制品、库存电工电气、库存五金工具、液压设备、鞋帽、计算机系统、机床设备及配件、电线电缆、一般劳保用品、家用电器、化工原料及产品(不含危险化学品、汽车用品、金属材料、服装、工艺品及配件、化妆品、电子产品及配件、仪器仪表、五金工具、磨具磨料、批发：五金工具、气动元件液压件、包装材料</td><td>2016-08-05</td><td>100.000000万</td></tr><tr><td>河南赛倍机电设备贸易有限公司</td><td>激光焊、全自动抛光机、电焊设备、切割机、金属板材、触摸屏、倒圆角抛光机器、割枪电缆、激光焊接、切割机器人、数控等离子、焊接机器人、割嘴电极、激光器模块、数控厚板切割机、机器人、机器人外部轴、金属砂光机、滤筒除尘器、激光管板一体机、机电设备、焊接机、烟除尘器、湿式除尘器、数控林肯割嘴、去毛刺机</td><td>2013-09-26</td><td>100.000000万人民币</td></tr><tr><td>广州铭心自动化设备有限公司</td><td>发那科机器人配件、机器人维修回收、工业机器人配件、机器人配件销、发那科、库卡机器人配件、协作机器人、工业机器人回收、PLC、工业机器人保养、驱动器、库卡、工业机器人、ABB机器人、安川机器人、电子制造设备、工业机器人调试、ABB、ABB机器人配件、安川、发那科机器人、示教器</td><td>2017-06-23</td><td>500.000000万人民币</td></tr></tbody></table></div></section>
     <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>代表性记录</h2><p class="biz-section-note">关键明细记录 Top N。</p></div><span class="biz-tag">Records</span></div><div class="table-wrap"><table><thead><tr><th>渠道/供应商名称</th><th>主营产品</th><th>成立时间</th><th>注册资本</th></tr></thead><tbody><tr><td>上海思奉贸易有限公司</td><td>工业自动化控制设、联轴器、KUKA库卡、模块、电动螺丝刀、vahle、过滤器、泵阀、电磨、进口贸易、夹具、编码器、气动工具、传感器、焊接配件、滤芯、德国机械产品及备件、电阻、工控原件、dold继电器、变送器、滚筒、液压工具、BEKO贝克欧、PLC、电动气动工具、制动器、电源、电机、可控硅、继电器、五金、进口泵阀、ATLAS阿特拉、焊接设备、RDP传感器、钳工工具、bartec、焊机设备、工业机器人、工业阀、GEMU盖米泵阀、电焊机、工业泵、工装夹具、工件夹具、工控产品、仪器仪表、机械设备、hbm、gemu、KUKA机器人、atlas、焊机、电动工具、气动打磨机、阻尼器、称重传感器、气缸、FRONIUS焊、变压器、光栅、自动化控制设备</td><td>2015-04-02</td><td>1000.000000万人民币</td></tr><tr><td>佛山市金杰铖贸易有限公司</td><td>机器配件、电源板、计算机板、机器手臂、工业机器、齿轮减速机、扩展板、通讯基板、接口板、组装机、伺服板、弧焊板、机械臂、扩展大板、通讯线、机器人、外部轴卡、动力线、电源模块、机械手、控制电源、柜主板、驱动模块、安全板、示教器</td><td>2012-10-18</td><td>100.0万人民币</td></tr><tr><td>厦门毅鑫鑫贸易有限公司</td><td>光电传感器、美国ASCO、减压器、日本欧姆龙、密封垫、燃气阀、瑞士堡盟、美国Mac、ab罗克韦尔、日本SMC、增压阀、传感器、mac电气、电磁阀</td><td>2016-11-29</td><td>50.000000万人民币</td></tr><tr><td>广州艾可自动化贸易有限公司</td><td>机器人的技术研究、固态继电器、温度控制器、电子、通信与自动控制技术研究、电路保护熔断器、网络技术的研究、太阳能技术研究、非许可类医疗器械、变压器、熔断器</td><td>2003-04-24</td><td>500.000000万人民币</td></tr><tr><td>滕州市起帆商贸有限公司</td><td>高精度机械手、圆锥滚子轴承、工业机械臂、轴承、直线导轨、工业机器人、滚珠丝杆、关节型机器人、机器人、进口轴承、六轴机器人、四轴机器人、协作机器人、集中润滑</td><td>2013-03-28</td><td>50.000000万人民币</td></tr><tr><td>烟台腾飞工贸有限公司</td><td>大梁校正仪、二保焊机、四轮定位、校正仪、汽车相关、各种配件、举升机、钣金工具/钣金修、二保焊机/举升机、钣金修复机、涂装流水生产线、四轮定位仪、烤漆房、工业涂装设备、汽车大梁校正仪</td><td>2009-06-19</td><td>2000.000000万人民币</td></tr><tr><td>上海山合海融商贸有限公司</td><td>衡器、光学仪器、智能车载设备、绝缘产品、按钮信号灯、测高仪、劳动保护用品、金属制品、断路器、操作杆、人工智能硬件、微型断路器、智能仪器仪表、电线、绝缘垫、电工器材、智能家庭消费设备、电缆、照明器具、电气机械设备、液压工具、电容器及其配套设备、液体分离及纯净设备、电阻测试仪、电容器、电气设备、继电器、电力电子元器件、互联网、泵及真空设备、智能输配电及控制设备、零部件、验电器、安防设备、气体、检电器、核相仪、消防器材、风动和电动工具、工业机器人、防电弧产品、绝缘手套、电子测量仪器、光伏设备及元器件、绝缘毯、液压动力机械及元件、仪器仪表、接地线、智能机器人、机械设备、行程开关、特种劳动防护用品、橡胶制品、可穿戴智能设备、塑料制品、绝缘靴、工具、机械零件、接触器、避雷器、互感器</td><td>2005-10-19</td><td>50.000000万人民币</td></tr><tr><td>青岛催汇兴贸易有限公司</td><td>橡塑制品、库存电工电气、库存五金工具、液压设备、鞋帽、计算机系统、机床设备及配件、电线电缆、一般劳保用品、家用电器、化工原料及产品(不含危险化学品、汽车用品、金属材料、服装、工艺品及配件、化妆品、电子产品及配件、仪器仪表、五金工具、磨具磨料、批发：五金工具、气动元件液压件、包装材料</td><td>2016-08-05</td><td>100.000000万</td></tr><tr><td>河南赛倍机电设备贸易有限公司</td><td>激光焊、全自动抛光机、电焊设备、切割机、金属板材、触摸屏、倒圆角抛光机器、割枪电缆、激光焊接、切割机器人、数控等离子、焊接机器人、割嘴电极、激光器模块、数控厚板切割机、机器人、机器人外部轴、金属砂光机、滤筒除尘器、激光管板一体机、机电设备、焊接机、烟除尘器、湿式除尘器、数控林肯割嘴、去毛刺机</td><td>2013-09-26</td><td>100.000000万人民币</td></tr><tr><td>广州铭心自动化设备有限公司</td><td>发那科机器人配件、机器人维修回收、工业机器人配件、机器人配件销、发那科、库卡机器人配件、协作机器人、工业机器人回收、PLC、工业机器人保养、驱动器、库卡、工业机器人、ABB机器人、安川机器人、电子制造设备、工业机器人调试、ABB、ABB机器人配件、安川、发那科机器人、示教器</td><td>2017-06-23</td><td>500.000000万人民币</td></tr></tbody></table></div></section>
     <section class="report-page biz-section"><div class="report-topbar"><div class="report-stripe"></div><div class="report-banner">渠道信息分析报告</div></div><div class="biz-section-head"><div><h2>特征与洞察</h2><p class="biz-section-note">基于数据的结构化解读。</p></div><span class="biz-tag">Insights</span></div><div class="structural-feature-grid"><article class="structural-feature-card">
