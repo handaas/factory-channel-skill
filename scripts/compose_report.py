@@ -38,6 +38,7 @@ from common import (
     print_json,
 )
 import mcp_client
+from semantic_review import prepare_draft
 from render_report import render_html, render_markdown, html_to_pdf
 
 SAMPLE_PATH = pathlib.Path(__file__).resolve().parent.parent / "assets" / "report.example.json"
@@ -1024,6 +1025,8 @@ def main() -> None:
         payload = build_dry_run_payload(args.enterprise or "示例科技有限公司", args.keyword_type)
     else:
         payload = build_payload(args.enterprise or "", args.keyword_type, args.search_keyword, args.address, args.page_size, args.max_pages)
+
+    payload = prepare_draft(payload)
 
     if args.output:
         out = pathlib.Path(args.output).expanduser()
